@@ -31,6 +31,9 @@ $40021000 constant RCC
      RCC $18 + constant RCC-APB2ENR
      RCC $1C + constant RCC-APB1ENR
 
+     0 variable i2c.cnt
+     0 variable i2c.addr
+     
 \ Checks I2C1 busy bit
 : i2c-busy?   ( -- b) I2C1-SR2 h@ 1 bit and 0<> ;
 
@@ -77,34 +80,95 @@ $40021000 constant RCC
 \ debugging
 : i2c? cr I2C1-CR1 h@ hex. I2C1-CR2 h@ hex. I2C1-SR1 h@ hex. I2C1-SR2 h@ hex. ;
 
-\ Low level register setting 
+\ Low level register setting and checking
 : i2c-DR! ( c -- ) I2C1-DR c! ;                 \ Writes data register
-: i2c-stop  ( -- )  9 bit I2C1-CR1 hbis! ; 
+: i2c-DR@ (  -- c ) I2C1-DR c@ ;                 \ Writes data register
+: i2c-stop!  ( -- )  9 bit I2C1-CR1 hbis! ; 
 : i2c-AF-0 ( -- )  10 bit I2C1-SR1 hbic! ;      \ Clars AF flag
 
+: i2c-SR1-flag? ( u -- ) I2C1-SR1 hbit@ ; 
+
 \ Low level status checking
-: i2c-sb?  ( -- b)   0  bit I2C1-SR1 hbit@ ;      \ Gets start bit flag
-: i2c-nak? ( -- b)   10 bit I2C1-SR1 hbit@ ;      \ Gets AF bit flag
-: i2c-TxE? ( -- b)   7  bit I2C1-SR1 hbit@ ;      \ TX register empty
-: i2c-ADDR? ( -- b)  1  bit I2C1-SR1 hbit@ ;      \ ADDR bit
+: i2c-sb?  ( -- b)   0  bit i2c-SR1-flag? ;      \ Gets start bit flag
+: i2c-nak? ( -- b)   10 bit i2c-SR1-flag? ;      \ Gets AF bit flag
+: i2c-TxE? ( -- b)   7  bit i2c-SR1-flag? ;      \ TX register empty
+: i2c-ADDR? ( -- b)  1  bit i2c-SR1-flag? ;      \ ADDR bit
 : i2c-MSL? ( -- b)   0  bit I2C1-SR2 hbit@ ;      \ MSL bit
+
+: i2c-SR1-wait ( u -- ) begin dup i2c-SR1-flag?         until drop ; \ Waits until SR1 meets bit mask
+: i2c-SR1-!wait ( u -- ) begin dup i2c-SR1-flag? negate until drop ;
+
+0  bit constant i2c-SR1-SB
+1  bit constant i2c-SR1-ADDR
+6  bit constant i2c-SR1-RxNE
+7  bit constant i2c-SR1-TxE
+10 bit constant i2c-SR1-AF
 
 \ Medium level actions, no or limited status checking
 
 : i2c-start ( -- ) \ set start bit and wait for start condition
- 8 bit I2C1-CR1 hbis! begin i2c-sb?    until ;
+ 8 bit I2C1-CR1 hbis! i2c-SR1-SB i2c-SR1-wait 8 bit I2C1-CR1 hbic! ; \ begin i2c-sb?    until ;
 
-: i2c-stop...  ( -- )  i2c-stop begin i2c-MSL? negate until ; \ stop and wait
-
+: i2c-stop  ( -- )  i2c-stop! begin i2c-MSL? negate until ; \ stop and wait
 
 : i2c-probe ( c -- nak ) \ Sets address and waits for ACK or NAK
   i2c-start
   shl i2c-DR! \ Send address (low bit zero)
-  begin i2c-nak? i2c-ADDR? or until \ Wait for address sent
+  i2c-SR1-AF i2c-SR1-ADDR or i2c-SR1-wait \ Wait for address sent
   i2c-nak?    \ Put AE on stack (NAK)
   i2c-AF-0
-  i2c-stop...
+  i2c-stop
 ;
+
+\ STM32 EV Events
+
+: i2c-EV5   i2c-SR1-SB   i2c-SR1-wait ;
+: i2c-EV6   i2c-SR1-ADDR i2c-SR1-AF or
+	                 i2c-SR1-wait
+	    I2C1-SR2 h@ drop ; \ Wait for address sent or AF
+: i2c-EV8_1 i2c-SR1-TxE  i2c-SR1-wait ;
+: i2c-EV7   i2c-SR1-RxNE i2c-SR1-wait ;
+
+\ Compatibility layer
+
+: i2c-addr ( u --) \ Start a new transaction and send address in write mode
+  i2c-start
+  shl dup i2c.addr !
+  i2c-EV5
+
+  i2c-DR!                   \ Sends address (write mode)
+  i2c-EV6       		\ wait for completion of addressing or AF
+;
+
+: i2c-xfer ( u -- nak) \ prepares for an nbyte reply
+    dup i2c.cnt !
+    if     \ cnt >  0           \ Restart after transmission in read mode  
+      i2c-start  \ set start bit
+      i2c-EV5    \ wait for start condition
+      i2c.addr @ 1 or \ Send address with read bit
+      i2c-DR!
+      \ i2c-EV6    \ wait until ready to read
+      i2c-SR1-ADDR i2c-SR1-wait
+    else   \ cnt == 0, compatibility equivalent to i2c-probe
+      i2c-nak? i2c-AF-0 i2c-stop
+    then
+  ;
+
+: >i2c  ( u -- ) \ Sends a byte over USB. Use after i2c-addr
+  i2c-EV8_1
+  i2c-DR!
+;
+
+: i2c>
+    i2c-EV7    \ wait until data received
+    i2c-DR@
+    -1 i2c.cnt +! 
+;
+
+: i2c>h
+    i2c> i2c> 8 lshift or
+;
+
 
 \ High level transactions
 
