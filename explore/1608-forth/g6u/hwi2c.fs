@@ -33,11 +33,11 @@ $40021000 constant RCC
 
      0 variable i2c.cnt
      0 variable i2c.addr
-     
+
 \ Checks I2C1 busy bit
 : i2c-busy?   ( -- b) I2C1-SR2 h@ 1 bit and 0<> ;
 
-     
+
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init
   \ Reset I2C1
@@ -47,18 +47,18 @@ $40021000 constant RCC
   \ init clocks
   APB2-GPIOB-EN APB2-AFIO-EN or RCC-APB2ENR bis!
   APB1-I2C1-EN                  RCC-APB1ENR bis!
-  
+
   \ init GPIO
   IMODE-FLOAT SCL io-mode!  \ edited: manual says use floating input
-  IMODE-FLOAT SDA io-mode!  
+  IMODE-FLOAT SDA io-mode!
   OMODE-AF-OD OMODE-FAST + SCL io-mode!  \ %1101 AF means I2C Using external pullup
   OMODE-AF-OD OMODE-FAST + SDA io-mode!  \ We need to connect external pullup R to SCL and SDA
 
   \ Reset I2C peripheral
    15 bit I2C1-CR1 hbis!
    15 bit I2C1-CR1 hbic!
-   
-  
+
+
   \ Enable I2C peripheral
   21 bit RCC-APB1ENR bis!  \ set I2C1EN
   1  bit I2C1-CR2 hbis!           \ 2 MHz
@@ -83,11 +83,11 @@ $40021000 constant RCC
 \ Low level register setting and checking
 : i2c-DR!     ( c -- )  I2C1-DR c! ;                 \ Writes data register
 : i2c-DR@     (  -- c ) I2C1-DR c@ ;                 \ Writes data register
-: i2c-start!  ( -- )    8 bit I2C1-CR1 hbis! ; 
+: i2c-start!  ( -- )    8 bit I2C1-CR1 hbis! ;
 : i2c-stop!   ( -- )    9 bit I2C1-CR1 hbis! ;
 : i2c-AF-0 ( -- )  10 bit I2C1-SR1 hbic! ;      \ Clars AF flag
 : i2c-START-0 ( -- )   8 bit I2C1-CR1 hbic! ;      \ Clears START condition
-: i2c-SR1-flag? ( u -- ) I2C1-SR1 hbit@ ; 
+: i2c-SR1-flag? ( u -- ) I2C1-SR1 hbit@ ;
 : i2c-ACK-1 ( -- ) 10 bit I2C1-CR1 hbis! ;
 : i2c-ACK-0 ( -- ) 10 bit I2C1-CR1 hbic! ;
 : i2c-POS-1 ( -- ) 11 bit I2C1-CR1 hbis! ;
@@ -148,20 +148,20 @@ $40021000 constant RCC
 
 : i2c-xfer ( u -- nak) \ prepares for an nbyte reply
     dup i2c.cnt !
-    dup if     \ cnt >  0           \ Restart after transmission in read mode  
-      	
+    dup if     \ cnt >  0           \ Restart after transmission in read mode
+
       dup 3 = if
       else
 	dup 1 = if
 	else
 	  dup 2 = if
 	    i2c-start  \ set start bit,  wait for start condition
-            
+
 	    i2c.addr @ 1 or \ Send address with read bit
 	    i2c-DR!
-	    
+
 	    i2c-POS-1 i2c-ACK-1
-	    
+
 	    i2c-EV6 I2C1-SR2 @ drop \ wait for ADDR and clear
 	    i2c-ACK-0
 	    i2c-SR1-BTF i2c-SR1-wait \ wait for BTF
@@ -169,7 +169,7 @@ $40021000 constant RCC
 	  else
 
 	    i2c-start  \ set start bit,  wait for start condition
-            
+
 	    i2c.addr @ 1 or \ Send address with read bit
 	    i2c-DR!
 	    i2c-EV6    \ wait until ready to read
@@ -179,7 +179,7 @@ $40021000 constant RCC
 	then
       then
       drop
-      
+
     else   \ cnt == 0, compatibility equivalent to i2c-probe
       drop
       i2c-nak? i2c-AF-0 i2c-stop
@@ -199,7 +199,7 @@ $40021000 constant RCC
 ;
 
 : i2c>h
-    i2c> i2c> 8 lshift or
+    i2c> 8 lshift  i2c> or
 ;
 
 
@@ -211,7 +211,7 @@ $40021000 constant RCC
     16 0 do  space i j +
       dup $08 < over $77 > or if drop 2 spaces else
         dup i2c-probe if drop ." --" else h.2 then
-      then	
+      then
     loop
   16 +loop ;
 
@@ -221,17 +221,17 @@ $40021000 constant RCC
 i2c-init
 
 \ No device
-\ i2c-init i2c-start $39 i2c-probe i2c? 
+\ i2c-init i2c-start $39 i2c-probe i2c?
 \ 00000401 00000002 00000400 00000003  ok.
 \ AE MSL BUSY
-\ 
+\
 \ Device
-\ i2c-init i2c-start $40 i2c-probe i2c? 
+\ i2c-init i2c-start $40 i2c-probe i2c?
 \ 00000401 00000002 00000082 00000007  ok.
 \ TxE ADDR  TRA BUSY MSL
 
-\ $40 i2c-addr $E3 >i2c 2 i2c-xfer i2c>h . 
+\ $40 i2c-addr $E3 >i2c 2 i2c-xfer i2c>h .
 
 \ Device specific stuff, to be moved to driver eventually
 
-: Si7021-T ;
+: Si7021-T ( u -- sd) 0 swap 72 175 f* 0 65536 f/ 85 46 d- ; \ converts 16 bit value to fixed point Temp
