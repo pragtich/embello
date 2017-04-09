@@ -81,12 +81,17 @@ $40021000 constant RCC
 : i2c? cr I2C1-CR1 h@ hex. I2C1-CR2 h@ hex. I2C1-SR1 h@ hex. I2C1-SR2 h@ hex. ;
 
 \ Low level register setting and checking
-: i2c-DR! ( c -- ) I2C1-DR c! ;                 \ Writes data register
-: i2c-DR@ (  -- c ) I2C1-DR c@ ;                 \ Writes data register
-: i2c-stop!  ( -- )  9 bit I2C1-CR1 hbis! ; 
+: i2c-DR!     ( c -- )  I2C1-DR c! ;                 \ Writes data register
+: i2c-DR@     (  -- c ) I2C1-DR c@ ;                 \ Writes data register
+: i2c-start!  ( -- )    8 bit I2C1-CR1 hbis! ; 
+: i2c-stop!   ( -- )    9 bit I2C1-CR1 hbis! ;
 : i2c-AF-0 ( -- )  10 bit I2C1-SR1 hbic! ;      \ Clars AF flag
-
+: i2c-START-0 ( -- )   8 bit I2C1-CR1 hbic! ;      \ Clears START condition
 : i2c-SR1-flag? ( u -- ) I2C1-SR1 hbit@ ; 
+: i2c-ACK-1 ( -- ) 10 bit I2C1-CR1 hbis! ;
+: i2c-ACK-0 ( -- ) 10 bit I2C1-CR1 hbic! ;
+: i2c-POS-1 ( -- ) 11 bit I2C1-CR1 hbis! ;
+: i2c-POS-0 ( -- ) 11 bit I2C1-CR1 hbic! ;
 
 \ Low level status checking
 : i2c-sb?  ( -- b)   0  bit i2c-SR1-flag? ;      \ Gets start bit flag
@@ -100,6 +105,7 @@ $40021000 constant RCC
 
 0  bit constant i2c-SR1-SB
 1  bit constant i2c-SR1-ADDR
+2  bit constant i2c-SR1-BTF
 6  bit constant i2c-SR1-RxNE
 7  bit constant i2c-SR1-TxE
 10 bit constant i2c-SR1-AF
@@ -107,7 +113,7 @@ $40021000 constant RCC
 \ Medium level actions, no or limited status checking
 
 : i2c-start ( -- ) \ set start bit and wait for start condition
- 8 bit I2C1-CR1 hbis! i2c-SR1-SB i2c-SR1-wait 8 bit I2C1-CR1 hbic! ; \ begin i2c-sb?    until ;
+  i2c-start! i2c-SR1-SB i2c-SR1-wait i2c-START-0 ; \ begin i2c-sb?    until ;
 
 : i2c-stop  ( -- )  i2c-stop! begin i2c-MSL? negate until ; \ stop and wait
 
@@ -142,14 +148,40 @@ $40021000 constant RCC
 
 : i2c-xfer ( u -- nak) \ prepares for an nbyte reply
     dup i2c.cnt !
-    if     \ cnt >  0           \ Restart after transmission in read mode  
-      i2c-start  \ set start bit
-      i2c-EV5    \ wait for start condition
-      i2c.addr @ 1 or \ Send address with read bit
-      i2c-DR!
-      \ i2c-EV6    \ wait until ready to read
-      i2c-SR1-ADDR i2c-SR1-wait
+    dup if     \ cnt >  0           \ Restart after transmission in read mode  
+      	
+      dup 3 = if
+      else
+	dup 1 = if
+	else
+	  dup 2 = if
+	    i2c-start  \ set start bit,  wait for start condition
+            
+	    i2c.addr @ 1 or \ Send address with read bit
+	    i2c-DR!
+	    
+	    i2c-POS-1 i2c-ACK-1
+	    
+	    i2c-EV6 I2C1-SR2 @ drop \ wait for ADDR and clear
+	    i2c-ACK-0
+	    i2c-SR1-BTF i2c-SR1-wait \ wait for BTF
+	    i2c-stop!                \ set stop without waiting
+	  else
+
+	    i2c-start  \ set start bit,  wait for start condition
+            
+	    i2c.addr @ 1 or \ Send address with read bit
+	    i2c-DR!
+	    i2c-EV6    \ wait until ready to read
+	    \ i2c-SR1-ADDR i2c-SR1-wait
+
+	  then
+	then
+      then
+      drop
+      
     else   \ cnt == 0, compatibility equivalent to i2c-probe
+      drop
       i2c-nak? i2c-AF-0 i2c-stop
     then
   ;
@@ -162,7 +194,8 @@ $40021000 constant RCC
 : i2c>
     i2c-EV7    \ wait until data received
     i2c-DR@
-    -1 i2c.cnt +! 
+    -1 i2c.cnt +!
+    i2c.cnt @ 0= if i2c-POS-0 i2c-ACK-1 then
 ;
 
 : i2c>h
@@ -197,3 +230,8 @@ i2c-init
 \ 00000401 00000002 00000082 00000007  ok.
 \ TxE ADDR  TRA BUSY MSL
 
+\ $40 i2c-addr $E3 >i2c 2 i2c-xfer i2c>h . 
+
+\ Device specific stuff, to be moved to driver eventually
+
+: Si7021-T ;
