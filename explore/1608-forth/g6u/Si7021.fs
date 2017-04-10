@@ -7,5 +7,6 @@
   0 65536 f/	( wasteful, but who cares )
   85 46 d-	( - 46.85 )
   ;
-: Si-RH     $40 i2c-addr $E5 >i2c 2 i2c-xfer i2c>h_inv Si7021-RH-conv ;
-: Si-lastT  $40 i2c-addr $E0 >i2c 2 i2c-xfer i2c>h_inv Si7021-T-conv ;
+: Si-RH     $40 i2c-addr $E5 >i2c 2 i2c-xfer i2c>h_inv Si7021-RH-conv ; \ Measure RH (wait)
+: Si-T     $40 i2c-addr $E3 >i2c 2 i2c-xfer i2c>h_inv Si7021-T-conv ;  \ Measure T (wait)
+: Si-lastT  $40 i2c-addr $E0 >i2c 2 i2c-xfer i2c>h_inv Si7021-T-conv ; \ Get T from last RH measurement
