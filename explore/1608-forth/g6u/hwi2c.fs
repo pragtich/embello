@@ -257,3 +257,8 @@ $40021000 constant RCC
 \ Device specific stuff, to be moved to driver eventually
 
 \ : Si7021-T ( u -- sd) 0 swap 72 175 f* 0 65536 f/ 85 46 d- ; \ converts 16 bit value to fixed point Temp
+
+\ 100x demo show-logo
+\ i2c-bb: 20364619 micros, 20.36 s
+\ hwi2c:  20364622 micros, 20.36 s
+
