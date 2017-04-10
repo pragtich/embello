@@ -148,43 +148,33 @@ $40021000 constant RCC
 
 : i2c-xfer ( u -- nak) \ prepares for an nbyte reply
     dup i2c.cnt !
-    dup if     \ cnt >  0           \ Restart after transmission in read mode
+    case      \ cnt >  0           \ Restart after transmission in read mode
+      2 of
+	i2c-start  \ set start bit,  wait for start condition
 
-      dup 3 = if
-      else
-	dup 1 = if
-	else
-	  dup 2 = if
-	    i2c-start  \ set start bit,  wait for start condition
+	i2c.addr @ 1 or \ Send address with read bit
+	i2c-DR!
 
-	    i2c.addr @ 1 or \ Send address with read bit
-	    i2c-DR!
+	i2c-POS-1 i2c-ACK-1
 
-	    i2c-POS-1 i2c-ACK-1
+	i2c-EV6 I2C1-SR2 @ drop \ wait for ADDR and clear
+	i2c-ACK-0
+	i2c-SR1-BTF i2c-SR1-wait \ wait for BTF
+	i2c-stop!                \ set stop without waiting
+      endof
+      1 of endof
+      0 of
+        i2c-nak? i2c-AF-0 i2c-stop
+      endof
+        \ default: n>2
+	i2c-start  \ set start bit,  wait for start condition
 
-	    i2c-EV6 I2C1-SR2 @ drop \ wait for ADDR and clear
-	    i2c-ACK-0
-	    i2c-SR1-BTF i2c-SR1-wait \ wait for BTF
-	    i2c-stop!                \ set stop without waiting
-	  else
-
-	    i2c-start  \ set start bit,  wait for start condition
-
-	    i2c.addr @ 1 or \ Send address with read bit
-	    i2c-DR!
-	    i2c-EV6    \ wait until ready to read
-	    \ i2c-SR1-ADDR i2c-SR1-wait
-
-	  then
-	then
-      then
-      drop
-
-    else   \ cnt == 0, compatibility equivalent to i2c-probe
-      drop
-      i2c-nak? i2c-AF-0 i2c-stop
-    then
-  ;
+	i2c.addr @ 1 or \ Send address with read bit
+	i2c-DR!
+	i2c-EV6    \ wait until ready to read
+	\ i2c-SR1-ADDR i2c-SR1-wait
+    endcase
+;
 
 : >i2c  ( u -- ) \ Sends a byte over USB. Use after i2c-addr
   i2c-EV8_1
@@ -198,8 +188,14 @@ $40021000 constant RCC
     i2c.cnt @ 0= if i2c-POS-0 i2c-ACK-1 then
 ;
 
+
 : i2c>h
-    i2c> 8 lshift  i2c> or
+    i2c>   i2c>  8 lshift or 
+;
+
+
+: i2c>h_inv
+    i2c>  8 lshift i2c>  or 
 ;
 
 
@@ -230,7 +226,7 @@ i2c-init
 \ 00000401 00000002 00000082 00000007  ok.
 \ TxE ADDR  TRA BUSY MSL
 
-\ $40 i2c-addr $E3 >i2c 2 i2c-xfer i2c>h .
+\ $40 i2c-addr $E3 >i2c 2 i2c-xfer i2c>h_inv Si7021-T f.
 
 \ Device specific stuff, to be moved to driver eventually
 
