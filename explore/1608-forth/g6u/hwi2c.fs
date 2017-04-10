@@ -33,6 +33,7 @@ $40021000 constant RCC
 
      0 variable i2c.cnt
      0 variable i2c.addr
+     0 variable i2c.needstop
 
 \ Checks I2C1 busy bit
 : i2c-busy?   ( -- b) I2C1-SR2 h@ 1 bit and 0<> ;
@@ -134,6 +135,7 @@ $40021000 constant RCC
 	    I2C1-SR2 h@ drop ; \ Wait for address sent or AF
 : i2c-EV8_1 i2c-SR1-TxE  i2c-SR1-wait ;
 : i2c-EV7   i2c-SR1-RxNE i2c-SR1-wait ;
+: i2c-EV7_2 i2c-SR1-BTF  i2c-SR1-wait ;
 
 \ Compatibility layer
 
@@ -148,8 +150,8 @@ $40021000 constant RCC
 
 : i2c-xfer ( u -- nak) \ prepares for an nbyte reply. Use after i2c-addr. Stops i2c after completion.
     dup i2c.cnt !
-    case      \ cnt >  0           \ Restart after transmission in read mode
-      2 of
+    case     
+      2 of    \ cnt = 2
 	i2c-start  \ set start bit,  wait for start condition
 
 	i2c.addr @ 1 or \ Send address with read bit
@@ -161,18 +163,21 @@ $40021000 constant RCC
 	i2c-ACK-0
 	i2c-SR1-BTF i2c-SR1-wait \ wait for BTF
 	i2c-stop!                \ set stop without waiting
+	0 i2c.needstop !
       endof
-      1 of endof
-      0 of
+      1 of endof		( cnt = 1 )
+      0 of			( cnt = 0, probe only )
         i2c-nak? i2c-AF-0 i2c-stop
+	0 i2c.needstop !
       endof
-        \ default: n>2
+      ( default: n > 2 )
 	i2c-start  \ set start bit,  wait for start condition
 
 	i2c.addr @ 1 or \ Send address with read bit
 	i2c-DR!
 	i2c-EV6    \ wait until ready to read
 	\ i2c-SR1-ADDR i2c-SR1-wait
+	1 i2c.needstop !
     endcase
 ;
 
@@ -182,10 +187,41 @@ $40021000 constant RCC
 ;
 
 : i2c>
+
+  i2c.needstop @
+  if    \ need to do stop stuff
+    i2c.cnt @
+    case
+      3 of			( prepare for last bytes )
+	i2c-EV7_2
+	i2c-ACK-0
+	i2c-DR@
+	-1 i2c.cnt +!
+	i2c-stop!
+      endof
+      2 of
+	i2c-DR@
+	-1 i2c.cnt +!
+	0 i2c.needstop !
+	\ no further special handling needed
+	\ Last byte follows normal protocol
+      endof			( default action cnt > 3, simple receive )
+      i2c-EV7    \ wait until data received
+      i2c-DR@
+      -1 i2c.cnt +!
+    endcase
+    
+  else  \ stop stuff was handled in i2c-xfer
     i2c-EV7    \ wait until data received
     i2c-DR@
     -1 i2c.cnt +!
-    i2c.cnt @ 0= if i2c-POS-0 i2c-ACK-1 then
+  then
+      
+  i2c.cnt @ 0=
+  if
+    i2c-POS-0 i2c-ACK-1
+    i2c-DR@ drop		( Do not understand why I need this )
+  then
 ;
 
 
