@@ -101,7 +101,7 @@ $40021000 constant RCC
 : i2c-MSL? ( -- b)   0  bit I2C1-SR2 hbit@ ;      \ MSL bit
 
 : i2c-SR1-wait ( u -- ) begin dup i2c-SR1-flag?         until drop ; \ Waits until SR1 meets bit mask
-: i2c-SR1-!wait ( u -- ) begin dup i2c-SR1-flag? negate until drop ;
+: i2c-SR1-!wait ( u -- ) begin dup i2c-SR1-flag? 0= until drop ;
 
 0  bit constant i2c-SR1-SB
 1  bit constant i2c-SR1-ADDR
