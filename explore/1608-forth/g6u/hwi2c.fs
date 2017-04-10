@@ -189,7 +189,7 @@ $40021000 constant RCC
 : i2c>
 
   i2c.needstop @
-  if    \ need to do stop stuff
+  if    \ need to do stop stuff when i2c-xfer could not
     i2c.cnt @
     case
       3 of			( prepare for last bytes )
@@ -250,20 +250,10 @@ $40021000 constant RCC
 
 \ testing
 
-i2c-init
-
-\ No device
-\ i2c-init i2c-start $39 i2c-probe i2c?
-\ 00000401 00000002 00000400 00000003  ok.
-\ AE MSL BUSY
-\
-\ Device
-\ i2c-init i2c-start $40 i2c-probe i2c?
-\ 00000401 00000002 00000082 00000007  ok.
-\ TxE ADDR  TRA BUSY MSL
+\ i2c-init
 
 \ $40 i2c-addr $E3 >i2c 2 i2c-xfer i2c>h_inv Si7021-T f.
 
 \ Device specific stuff, to be moved to driver eventually
 
-: Si7021-T ( u -- sd) 0 swap 72 175 f* 0 65536 f/ 85 46 d- ; \ converts 16 bit value to fixed point Temp
+\ : Si7021-T ( u -- sd) 0 swap 72 175 f* 0 65536 f/ 85 46 d- ; \ converts 16 bit value to fixed point Temp
