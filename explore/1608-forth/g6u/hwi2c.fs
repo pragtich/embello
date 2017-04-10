@@ -113,7 +113,7 @@ $40021000 constant RCC
 \ Medium level actions, no or limited status checking
 
 : i2c-start ( -- ) \ set start bit and wait for start condition
-  i2c-start! i2c-SR1-SB i2c-SR1-wait i2c-START-0 ; \ begin i2c-sb?    until ;
+  i2c-start! i2c-SR1-SB i2c-SR1-wait ; 
 
 : i2c-stop  ( -- )  i2c-stop! begin i2c-MSL? negate until ; \ stop and wait
 
@@ -146,7 +146,7 @@ $40021000 constant RCC
   i2c-EV6       		\ wait for completion of addressing or AF
 ;
 
-: i2c-xfer ( u -- nak) \ prepares for an nbyte reply
+: i2c-xfer ( u -- nak) \ prepares for an nbyte reply. Use after i2c-addr. Stops i2c after completion.
     dup i2c.cnt !
     case      \ cnt >  0           \ Restart after transmission in read mode
       2 of
@@ -176,7 +176,7 @@ $40021000 constant RCC
     endcase
 ;
 
-: >i2c  ( u -- ) \ Sends a byte over USB. Use after i2c-addr
+: >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
   i2c-EV8_1
   i2c-DR!
 ;
