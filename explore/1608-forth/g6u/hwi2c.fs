@@ -62,11 +62,37 @@ $40021000 constant RCC
 
   \ Enable I2C peripheral
   21 bit RCC-APB1ENR bis!  \ set I2C1EN
-  1  bit I2C1-CR2 hbis!           \ 2 MHz
+  $3F I2C1-CR2 hbic!       \ CLEAR FREQ field
+  36 I2C1-CR2 hbis!        \ APB1 is 36 MHz
 
+  \ clock rate clock-hz; USB = 72 MHz
+  \ crystal 8mhz x 9
+  \ PLL 72 MHz / 2
+  \ 36 MHz AHB /6
+  \ 6 MHz ADC
+  \ 001D840A RCC-CFGR
+  \ SW: 10    PLL as clock
+  \ SWS: 10   PLL as clock
+  \ HPRE: 0   AHB = SYSCLK
+  \ PPRE1 100 APB1/PCLK1 = /2 must not be > 36 MHz
+  \ PPRE2 000 APB2/PCLK2 = /1
+  \ ADCPRE 10 ADCPRE = /6
+  \ PLLSRC 1  HSE = PLL input
+  \ PLLXTPRE 0 HSE /1
+  \ PLLMUL 0111 PLL = cryst x9
+
+  \ cryst 8MHz x9 = PLLCLK 72 MHZ
+  \ SYSCLK = PLLCLK = 72 MHz
+  \ SYSCLK / AHB prescale = 72MHz AHBCLK
+  \ AHBCLK / APB1 = 36MHz
+  \ AHBCLK / APB2 = 72MHz
+  \ I2C = APB1 = 36MHz
+  
   \ Configure clock control registers?!
 
-  10 I2C1-CCR h!  \ lets start slow 100 kHz?
+  27           \ CCR 27?
+  15 bit or    \ FM
+  I2C1-CCR h!  \ FREQ = 36MHZ, 31 ns; DUTY=0 3x 31ns = 10 MHz; moet delen door 27 
   3  I2C1-TRISE h!         \ 2+1 for 1000ns SCL
 
   0  bit I2C1-CR1 hbis!    \ Enable bit
