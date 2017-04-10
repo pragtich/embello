@@ -287,4 +287,3 @@ $40021000 constant RCC
 \ 100x demo show-logo
 \ i2c-bb: 20364619 micros, 20.36 s
 \ hwi2c:  20364622 micros, 20.36 s
-

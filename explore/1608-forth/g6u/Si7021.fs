@@ -1,0 +1,11 @@
+
+: Si7021-RH-conv ( u -- s ) \ converts measured RH to signed int RH
+  125 * 65536 / 6 - ;
+: Si7021-T-conv ( u -- ds) \ converts measured T to fixed point T
+  0 swap	( make it fixed point)
+  72 175 f*	( * 175.72 )
+  0 65536 f/	( wasteful, but who cares )
+  85 46 d-	( - 46.85 )
+  ;
+: Si-RH     $40 i2c-addr $E5 >i2c 2 i2c-xfer i2c>h_inv Si7021-RH-conv ;
+: Si-lastT  $40 i2c-addr $E0 >i2c 2 i2c-xfer i2c>h_inv Si7021-T-conv ;
