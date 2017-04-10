@@ -115,7 +115,7 @@ $40021000 constant RCC
 : i2c-start ( -- ) \ set start bit and wait for start condition
   i2c-start! i2c-SR1-SB i2c-SR1-wait ; 
 
-: i2c-stop  ( -- )  i2c-stop! begin i2c-MSL? negate until ; \ stop and wait
+: i2c-stop  ( -- )  i2c-stop! begin i2c-MSL? 0= until ; \ stop and wait
 
 : i2c-probe ( c -- nak ) \ Sets address and waits for ACK or NAK
   i2c-start
