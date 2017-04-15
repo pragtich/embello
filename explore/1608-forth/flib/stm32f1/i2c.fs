@@ -1,6 +1,4 @@
 
-forgetram
-compiletoram
 
 \ Define pins
 [ifndef] SCL  PB6 constant SCL  [then]
