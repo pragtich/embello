@@ -98,13 +98,26 @@ $40021000 constant RCC
   10 bit I2C1-CR1 hbis!    \ ACK enable
 
   \ Wait for bus to initialize
-  i2c.timeout @ begin 1- dup 0= i2c-busy? 0= or until
+  i2c.timeout @ begin 1- dup 0= i2c-busy? 0= or until drop
 ;
 
 
 
 \ debugging
 : i2c? cr I2C1-CR1 h@ hex. I2C1-CR2 h@ hex. I2C1-SR1 h@ hex. I2C1-SR2 h@ hex. ;
+
+
+
+\ Register definitions
+0  bit constant i2c-SR1-SB
+1  bit constant i2c-SR1-ADDR
+2  bit constant i2c-SR1-BTF
+6  bit constant i2c-SR1-RxNE
+7  bit constant i2c-SR1-TxE
+10 bit constant i2c-SR1-AF
+
+0  bit constant i2c-SR2-MSL
+
 
 \ Low level register setting and checking
 : i2c-DR!     ( c -- )  I2C1-DR c! ;                 \ Writes data register
@@ -114,6 +127,7 @@ $40021000 constant RCC
 : i2c-AF-0 ( -- )  10 bit I2C1-SR1 hbic! ;      \ Clars AF flag
 : i2c-START-0 ( -- )   8 bit I2C1-CR1 hbic! ;      \ Clears START condition
 : i2c-SR1-flag? ( u -- ) I2C1-SR1 hbit@ ;
+: i2c-SR2-flag? ( u -- ) I2C1-SR2 hbit@ ;
 : i2c-ACK-1 ( -- ) 10 bit I2C1-CR1 hbis! ;
 : i2c-ACK-0 ( -- ) 10 bit I2C1-CR1 hbic! ;
 : i2c-POS-1 ( -- ) 11 bit I2C1-CR1 hbis! ;
@@ -124,24 +138,38 @@ $40021000 constant RCC
 : i2c-nak? ( -- b)   10 bit i2c-SR1-flag? ;      \ Gets AF bit flag
 : i2c-TxE? ( -- b)   7  bit i2c-SR1-flag? ;      \ TX register empty
 : i2c-ADDR? ( -- b)  1  bit i2c-SR1-flag? ;      \ ADDR bit
-: i2c-MSL? ( -- b)   0  bit I2C1-SR2 hbit@ ;      \ MSL bit
+: i2c-MSL? ( -- b)   i2c-SR2-MSL I2C-SR2-flag? ;      \ MSL bit
 
-: i2c-SR1-wait ( u -- ) i2c.timeout @ ( u t ) begin 1- 2dup  0= swap i2c-SR1-flag? or drop ; \ Waits until SR1 meets bit mask
-: i2c-SR1-!wait ( u -- ) begin dup i2c-SR1-flag? 0= until drop ;
+: i2c-SR1-wait ( u -- ) i2c.timeout @ ( u t )
+	       begin
+		 1- 2dup ( u t- u t- )
+		 0=      ( u t- u f )
+		 swap    ( u t- f u )
+		 i2c-SR1-flag? ( u t- f f)
+		 or            ( u t- f)
+	       until
+	       2drop ; \ Waits until SR1 meets bit mask, times out after i2c.timeout passes through the loop
+: i2c-SR1-!wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? 0= or until 2drop ;
 
-0  bit constant i2c-SR1-SB
-1  bit constant i2c-SR1-ADDR
-2  bit constant i2c-SR1-BTF
-6  bit constant i2c-SR1-RxNE
-7  bit constant i2c-SR1-TxE
-10 bit constant i2c-SR1-AF
+
+: i2c-SR2-wait ( u -- ) i2c.timeout @ ( u t )
+	       begin
+		 1- 2dup ( u t- u t- )
+		 0=      ( u t- u f )
+		 swap    ( u t- f u )
+		 i2c-SR2-flag? ( u t- f f)
+		 or            ( u t- f)
+	       until
+	       2drop ; \ Waits until SR1 meets bit mask, times out after i2c.timeout passes through the loop
+: i2c-SR2-!wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR2-flag? 0= or until 2drop ;
+
 
 \ Medium level actions, no or limited status checking
 
 : i2c-start ( -- ) \ set start bit and wait for start condition
   i2c-start! i2c-SR1-SB i2c-SR1-wait ; 
 
-: i2c-stop  ( -- )  i2c-stop! begin i2c-MSL? 0= until ; \ stop and wait
+: i2c-stop  ( -- )  i2c-stop! i2c-SR2-MSL i2c-SR2-!wait ; \ Assert stop and wait
 
 : i2c-probe ( c -- nak ) \ Sets address and waits for ACK or NAK
   i2c-start
