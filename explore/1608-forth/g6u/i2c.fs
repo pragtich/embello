@@ -148,7 +148,8 @@ $40021000 constant RCC
 		 i2c-SR1-flag? ( u t- f f)
 		 or            ( u t- f)
 	       until
-	       2drop ; \ Waits until SR1 meets bit mask, times out after i2c.timeout passes through the loop
+	       0= if ." i2c timeout" then
+	       drop ; \ Waits until SR1 meets bit mask, times out after i2c.timeout passes through the loop
 : i2c-SR1-!wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? 0= or until 2drop ;
 
 
