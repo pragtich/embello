@@ -2,12 +2,13 @@
 
 \ <<<board>>>
 compiletoflash
-( core start: ) here dup hex.
+( core start: ) here hex.
+
+PC13 constant LED
 
 include ../flib/spi/rf69.fs
-include ../flib/any/varint.fs
 include ../flib/mecrisp/multi.fs
+include ../flib/any/timed.fs
 
-( core end, size: ) here dup hex. swap - .
 cornerstone <<<core>>>
-compiletoram
+hello
