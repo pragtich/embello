@@ -126,7 +126,7 @@ $40021000 constant RCC
 : i2c-ADDR? ( -- b)  1  bit i2c-SR1-flag? ;      \ ADDR bit
 : i2c-MSL? ( -- b)   0  bit I2C1-SR2 hbit@ ;      \ MSL bit
 
-: i2c-SR1-wait ( u -- ) i2c.timeout @ ( u t ) begin 1- 2dup  0= swap i2c-SR1-flag? or drop ; \ Waits until SR1 meets bit mask
+: i2c-SR1-wait ( u -- ) i2c.timeout @ ( u t ) begin 1- 2dup  0= swap i2c-SR1-flag? or until 2drop ; \ Waits until SR1 meets bit mask
 : i2c-SR1-!wait ( u -- ) begin dup i2c-SR1-flag? 0= until drop ;
 
 0  bit constant i2c-SR1-SB
