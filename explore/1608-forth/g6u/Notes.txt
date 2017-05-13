@@ -1,0 +1,12 @@
+
+Ohm   us      af-0    kHz   result
+1.2k  0       yes     400   Not working
+1.2k  20      no      400   OK
+1.2k  20      no      100   Not working
+5.6k  20      no      400   OK
+5.6k  0       no      400   Not working
+5,6k 0        yes     400   Not working
+5.6  20       yes      400   OK
+2.2k  20      no      400   OK
+Moved 20us to lcd!c: pixel offsets!?
+

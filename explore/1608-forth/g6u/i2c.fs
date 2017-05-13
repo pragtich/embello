@@ -89,6 +89,7 @@ $40005800 constant I2C2
 
   27           \ CCR 27?
   15 bit or    \ FM
+\  drop $b4     \ test: 100kHz
   I2C1-CCR h!  \ FREQ = 36MHZ, 31 ns; DUTY=0 3x 31ns = 10 MHz; must divide by 27
   3  I2C1-TRISE h!         \ 2+1 for 1000ns SCL
 
@@ -218,9 +219,28 @@ $40005800 constant I2C2
     endcase
 ;
 
+
+: >>i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
+\  i2c-AF-0 
+\  i2c1-sr1 h@
+\  20 us
+\  i2c1-sr1 h@ cr
+\  swap hex. hex.
+  i2c-EV6b                \ Just in case the ADDR needs clearing
+
+  i2c1-sr1 h@
+
+  i2c-EV7_2               \ Wait for BTF (transfer complete)
+
+  i2c1-sr1 h@ cr
+  swap hex. hex.
+
+  i2c-EV8_1
+  i2c-DR!
+;
+
+
 : >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
-\  i2c? i2c-AF-0 i2c?
-  20 us
   i2c-EV6b                \ Just in case the ADDR needs clearing
   i2c-EV8_1
   i2c-DR!
