@@ -10,3 +10,135 @@ Ohm   us      af-0    kHz   result
 2.2k  20      no      400   OK
 Moved 20us to lcd!c: pixel offsets!?
 
+Added an i2c-EV7_2 (wait for BTF). Put it into a copy of >i2c, called >>i2c
+Does not always get reached!
+
+00000080 00000080 
+00000080 00000084 
+00000080 00000080 
+00000080 00000084 
+00000080 00000080 
+00000080 00000084 
+00000080 00000080 
+00000080 00000084 
+00000080 00000080 
+00000080 00000084 
+00000080 00000080 
+00000080 00000084 
+00000080 00000080 
+00000080 00000084  ok.
+
+
+Test 1
+Shifted lines
+
+ >>i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
+\  i2c-AF-0 
+\  i2c1-sr1 h@
+\  20 us
+\  i2c1-sr1 h@ cr
+\  swap hex. hex.
+\  i2c1-sr1 h@
+\  50 us
+  i2c1-sr1 h@ 
+  i2c-EV6b                \ Just in case the ADDR needs clearing
+
+
+
+\  i2c-EV7_2               \ Wait for BTF (transfer complete)
+
+\  i2c1-sr1 h@ cr
+\  swap hex. hex.
+  i2c1-sr1 h@ 
+
+  swap h.4 h.4 cr
+  i2c-EV8_1
+
+  i2c-DR!
+ 
+;
+
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+00820080
+00800080
+
+Breadboard-lcdinit-0usprint.sr
+
+
+Test 2 without print
+Not working (display off)
+Breadboard-lcdinit-0us.sr
+Only sending $3c $80
+
+
+Test 3 with 20us
+Shifted lines
+20 us is just enough that the next byte is sent after shift register is empty??
+
+: >>i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
+\  i2c-AF-0 
+\  i2c1-sr1 h@
+  20 us
+\  i2c1-sr1 h@ cr
+\  swap hex. hex.
+\  i2c1-sr1 h@
+\  50 us
+\  i2c1-sr1 h@ 
+  i2c-EV6b                \ Just in case the ADDR needs clearing
+
+
+

@@ -167,6 +167,7 @@ $40005800 constant I2C2
 \ Compatibility layer
 
 : i2c-addr ( u --) \ Start a new transaction and send address in write mode
+  20 us
   i2c-start
   shl dup i2c.addr !
   i2c-EV5
@@ -223,20 +224,27 @@ $40005800 constant I2C2
 : >>i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
 \  i2c-AF-0 
 \  i2c1-sr1 h@
-\  20 us
+  50 us
 \  i2c1-sr1 h@ cr
 \  swap hex. hex.
+\  i2c1-sr1 h@
+\  50 us
+\  i2c1-sr1 h@ 
   i2c-EV6b                \ Just in case the ADDR needs clearing
 
-  i2c1-sr1 h@
 
-  i2c-EV7_2               \ Wait for BTF (transfer complete)
 
-  i2c1-sr1 h@ cr
-  swap hex. hex.
+\  i2c-EV7_2               \ Wait for BTF (transfer complete)
 
+\  i2c1-sr1 h@ cr
+\  swap hex. hex.
+\  i2c1-sr1 h@ 
+
+ \ swap h.4 h.4 cr
   i2c-EV8_1
+
   i2c-DR!
+ 
 ;
 
 

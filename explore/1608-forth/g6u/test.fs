@@ -6,6 +6,8 @@
 
 hello
 
+0 constant OLED.LARGE
+
 include ./i2c.fs
 
 include ./ssd1306.fs
