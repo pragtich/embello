@@ -234,7 +234,7 @@ $40005800 constant I2C2
 ;
 
 : i2c>
-
+  depth .
   i2c.needstop @
   if    \ need to do stop stuff when i2c-xfer could not
     i2c.cnt @
@@ -266,7 +266,7 @@ $40005800 constant I2C2
     \ dup space h.2
     i2c.cnt @ 1- dup i2c.cnt !
     \ dup .
-    1 = if 150 us i2c-SCL-release  ." Released SCL" then
+    1 = if i2c-SCL-release then
   then
 
   i2c.cnt @ 0=
