@@ -12,8 +12,6 @@ $40005400 constant I2C1
 $40005800 constant I2C2
      I2C1 $00 + constant I2C1-CR1
      I2C1 $04 + constant I2C1-CR2
-     I2C1 $08 + constant I2C1-OAR1
-     I2C1 $0C + constant I2C1-OAR2
      I2C1 $10 + constant I2C1-DR
      I2C1 $14 + constant I2C1-SR1
      I2C1 $18 + constant I2C1-SR2
@@ -55,19 +53,16 @@ $40005800 constant I2C2
   \ Enable I2C peripheral
   21 bit RCC-APB1ENR bis!  \ set I2C1EN
   $3F I2C1-CR2 hbic!       \ CLEAR FREQ field
-  36 I2C1-CR2 hbis!        \ APB1 is 36 MHz
+  36 I2C1-CR2 hbis!        \ APB1 is 36 MHz TODO: all clock rates
 
-  \ Configure clock control registers?!
+  \ Configure clock control registers. For now, 100 kHz and 1000us rise time
+  \ TODO: configure variable bit rates, Fast mode
+  $B4 I2C1-CCR h!          \ Select 100 kHz normal mode
+  37  I2C1-TRISE h!        \ APB1(MHz)+1 for 1000ns SCL
 
-  27           \ CCR 27?
-  15 bit or    \ FM
-  I2C1-CCR h!  \ FREQ = 36MHZ, 31 ns; DUTY=0 3x 31ns = 10 MHz; must divide by 27
-  37  I2C1-TRISE h!         \ APB1(MHz)+1 for 1000ns SCL
+  0  bit 10 bit or I2C1-CR1 hbis!    \ ACK enable, Enable bit
 
-  0  bit I2C1-CR1 hbis!    \ Enable bit
-  10 bit I2C1-CR1 hbis!    \ ACK enable
-
-  begin i2c-busy? 0= until
+  begin i2c-busy? 0= until \ Wait until peripheral ready
  ;
 
 \ debugging
