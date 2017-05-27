@@ -12,6 +12,10 @@ i2c-bufsize 4 + buffer: i2c.rxbuf
 i2c.txbuf i2c-bufsize init-ring
 i2c.rxbuf i2c-bufsize init-ring
 
+\ Variables
+0 variable i2c.addr
+o variable i2c.cnt
+
 \ Register definitions
 $40005400 constant I2C1
 $40005800 constant I2C2
@@ -32,8 +36,15 @@ $40005800 constant I2C2
 21 bit constant APB1-I2C1-EN
 21 bit constant APB1-RST-I2C1
 
-\ Checks I2C1 busy bit
-: i2c-busy?   ( -- b) I2C1-SR2 h@ 1 bit and 0<> ;
+0  bit constant i2c-SR1-SB
+10 bit constant i2c-SR1-AF
+1  bit constant i2c-SR2-BUSY
+
+\ status checks
+: i2c-SR1-flag? I2C1-SR1 hbit@ ;
+: i2c-SR2-flag? I2C1-SR2 hbit@ ;
+: i2c-SR1-wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? or until 2drop ; \ Waits until SR1 meets bit mask or timeout
+: i2c-busy?   ( -- b) i2c-SR2-BUSY I2C1-SR2-flag? 0<> ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init ( -- )
@@ -73,21 +84,45 @@ $40005800 constant I2C2
 \ debugging
 : i2c? cr I2C1-CR1 h@ hex. I2C1-CR2 h@ hex. I2C1-SR1 h@ hex. I2C1-SR2 h@ hex. ;
 
+: i2c-start! ( -- ) 8 bit I2C1-CR1 hbis! ;
+: i2c-start \ set start bit and wait for start condition
+i2c-start! i2c-SR1-SB i2c-SR1-wait ;
 
 \ API (should be compatible with i2c-bb
 
-: i2c-addr ( u --) \ Start a new transaction and send address in write mode
+: i2c-addr ( u --)
+  \ Start a new transaction and send address in write mode
+  \ Does not wait for ADDR: i2x-xfer should do this
+  i2c-start
+  shl dup i2c.addr !
+  \ i2c-EV5
+  i2c-SR1-SB i2c-SR1-wait
+  i2c-DR!                   \ Sends address (write mode)
+;
+
+: i2c-irq-tx                \ irq handler for DMA transmission
 ;
 
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
-                        \ Use after i2c-addr. Stops i2c after completion.
+  \ Use after i2c-addr. Stops i2c after completion.
+  i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait    \ Wait for ack or nak
+  I2C1-SR2 h@ drop                           \ clear ACK flag
+  i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
+  i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag
+  \ Register end of transmission handler
+  \ Start transmission
+  \ if n > 0:
+  \ Register end of receive handler
+  \ Start reception
+  \ stop?
 ;
 
 : >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
-;
+  i2c-txbuf >ring ;
 
 : i2c>
-;
+  begin i2c-rxbuf ring# 0<> until 
+  i2c-rxbuf ring> ;
 
 : i2c>h
     i2c>   i2c>  8 lshift or
