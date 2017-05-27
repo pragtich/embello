@@ -4,8 +4,13 @@
 [ifndef] SCL  PB6 constant SCL  [then]
 [ifndef] SDA  PB7 constant SDA  [then]
 
-\ Buffer sizing
+\ Buffers
 [ifndef] i2c-bufsize 16 constant i2c-bufsize [then]
+
+i2c-bufsize 4 + buffer: i2c.txbuf
+i2c-bufsize 4 + buffer: i2c.rxbuf
+i2c.txbuf i2c-bufsize init-ring
+i2c.rxbuf i2c-bufsize init-ring
 
 \ Register definitions
 $40005400 constant I2C1
