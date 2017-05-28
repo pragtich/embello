@@ -38,11 +38,12 @@ pc13 constant led
 : dma-irq ." !" ;
 	    
     
-0  bit RCC-AHBENR hbis!
+0  bit RCC-AHBENR bis!
+07 DMA1-CNDTR1 !
+dma.a DMA1-CPAR1 !
+dma.b DMA1-CMAR1 !
 %0101000011000000 DMA1-CCR1 h!   \ Not enabled yet
-07 DMA1-CNDTR1 h!
-dma.a DMA1-CPAR1 h!
-dma.b DMA1-CMAR1 h!
+
 ['] dma-irq drop
 
 
