@@ -29,6 +29,47 @@ $40005800 constant I2C2
 \ $40021000 constant RCC
      RCC $10 + constant RCC-APB1RSTR
      RCC $14 + constant RCC-AHBENR
+\ $40020000 constant DMA1
+    \ DMA1 $00 + constant DMA1-ISR
+    \ DMA1 $04 + constant DMA1-IFCR
+    \ DMA1 $08 + constant DMA1-CCR1
+    DMA1 $44 + constant DMA1-CCR4
+    DMA1 $48 + constant DMA1-CNDTR4
+    DMA1 $4C + constant DMA1-CPAR4
+    DMA1 $50 + constant DMA1-CMAR4
+    DMA1 $58 + constant DMA1-CCR5
+    DMA1 $5C + constant DMA1-CNDTR5
+    DMA1 $60 + constant DMA1-CPAR5
+    DMA1 $64 + constant DMA1-CMAR5
+
+    $E000E000 constant NVIC  
+    NVIC $4 + constant NVIC_ICTR
+    NVIC $F00 + constant NVIC_STIR
+    NVIC $100 + constant NVIC_ISER0
+    NVIC $104 + constant NVIC_ISER1
+    NVIC $180 + constant NVIC_ICER0
+    NVIC $184 + constant NVIC_ICER1
+    NVIC $200 + constant NVIC_ISPR0
+    NVIC $204 + constant NVIC_ISPR1
+    NVIC $280 + constant NVIC_ICPR0
+    NVIC $284 + constant NVIC_ICPR1
+    NVIC $300 + constant NVIC_IABR0
+    NVIC $304 + constant NVIC_IABR1
+    NVIC $400 + constant NVIC_IPR0
+    NVIC $404 + constant NVIC_IPR1
+    NVIC $408 + constant NVIC_IPR2
+    NVIC $40C + constant NVIC_IPR3
+    NVIC $410 + constant NVIC_IPR4
+    NVIC $414 + constant NVIC_IPR5
+    NVIC $418 + constant NVIC_IPR6
+    NVIC $41C + constant NVIC_IPR7
+    NVIC $420 + constant NVIC_IPR8
+    NVIC $424 + constant NVIC_IPR9
+    NVIC $428 + constant NVIC_IPR10
+    NVIC $42C + constant NVIC_IPR11
+    NVIC $430 + constant NVIC_IPR12
+    NVIC $434 + constant NVIC_IPR13
+    NVIC $438 + constant NVIC_IPR14    
 
 \ Register constants
 3  bit constant APB2-GPIOB-EN
@@ -79,14 +120,21 @@ $40005800 constant I2C2
   0  bit 10 bit or I2C1-CR1 hbis!    \ ACK enable, Enable bit
 
   begin i2c-busy? 0= until \ Wait until peripheral ready
+
+  0  bit RCC-AHBENR bis!   \ Enable DMA peripheral clock
+  0  bit DMA1-CCR6  bic!   \ Disable it for now (ch 6 = I2C1 TX)
  ;
 
 \ debugging
 : i2c? cr I2C1-CR1 h@ hex. I2C1-CR2 h@ hex. I2C1-SR1 h@ hex. I2C1-SR2 h@ hex. ;
 
+\ Low level register setting and reading
 : i2c-start! ( -- ) 8 bit I2C1-CR1 hbis! ;
 : i2c-start \ set start bit and wait for start condition
 i2c-start! i2c-SR1-SB i2c-SR1-wait ;
+
+: i2c-DR!     ( c -- )  I2C1-DR c! ;            \ Writes data register
+
 
 \ API (should be compatible with i2c-bb
 
@@ -100,16 +148,20 @@ i2c-start! i2c-SR1-SB i2c-SR1-wait ;
   i2c-DR!                   \ Sends address (write mode)
 ;
 
-: i2c-irq-tx                \ irq handler for DMA transmission
+: i2c-irq-txdone            \ irq handler for DMA transmission done
 ;
 
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
-  \ Use after i2c-addr. Stops i2c after completion.
+  \ Use after i2c-addr and optional >i2c calls.
+  \ Stops i2c after completion. 
   i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait    \ Wait for ack or nak
   I2C1-SR2 h@ drop                           \ clear ACK flag
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
   i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag
   \ Register end of transmission handler
+  ['] i2c-irq-txdone irq-dma1_6 !
+  %0011000010011010 DMA1_CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
+  16 bit NVIC_ISER0 !
   \ Start transmission
   \ if n > 0:
   \ Register end of receive handler
