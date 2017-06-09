@@ -131,16 +131,23 @@ $40005800 constant I2C2
 \ Low level register setting and reading
 : i2c-start! ( -- ) 8 bit I2C1-CR1 hbis! ;
 : i2c-start \ set start bit and wait for start condition
-i2c-start! i2c-SR1-SB i2c-SR1-wait ;
+  i2c-start! i2c-SR1-SB i2c-SR1-wait ;
+: i2c-stop!   ( -- )    9 bit I2C1-CR1 hbis! ;
+: i2c-stop  ( -- )  i2c-stop! i2c-SR2-MSL i2c-SR2-!wait ; \ stop and wait
 
 : i2c-DR!     ( c -- )  I2C1-DR c! ;            \ Writes data register
 
+\ STM Events
+: i2c-EV8_2 i2c-SR1-BTF  i2c-SR1-wait ;
 
 \ API (should be compatible with i2c-bb
 
 : i2c-addr ( u --)
   \ Start a new transaction and send address in write mode
   \ Does not wait for ADDR: i2x-xfer should do this
+  i2c.txbuf i2c-bufsize init-ring
+  i2c.rxbuf i2c-bufsize init-ring
+
   i2c-start
   shl dup i2c.addr !
   \ i2c-EV5
@@ -148,25 +155,39 @@ i2c-start! i2c-SR1-SB i2c-SR1-wait ;
   i2c-DR!                   \ Sends address (write mode)
 ;
 
-: i2c-irq-txdone            \ irq handler for DMA transmission done
+: i2c-irq-tx-stop           \ irq handler for DMA transmission done
+  0 bit DMA1_CCR6 bic!
+  21 bit DMA1_IFCR bis!     \ CTCIF6, clear transfer complete flag
+  i2c-EV8_2 i2c-stop
+  begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
+;
+
+: i2c-irq-tx-rx             \ irq handler for DMA transmission done
 ;
 
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
-  \ Stops i2c after completion. 
+
+  dup i2c.cnt !
+  \ Register end of transmission handler
+  dup 0= if
+    ['] i2c-irq-tx-stop irq-dma1_6 !
+  else
+    ['] i2c-irq-tx-rx   irq-dma1_6 !
+  then
+  %0011000010011010 DMA1_CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
+  16 bit NVIC_ISER0 !
+  \ Configure DMA
+  i2c.txbuf 4 + DMA1-CMAR6 !
+  I2C1-DR       DMA1-CPAR6 !
+  dup DMA1_CNDTR6 !                         \ Count
+  \ Start transmission (will wait for I2C1 to be ready)
+  0 bit DMA1_CCR6 bis!                      \ DMAEN
+
   i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait    \ Wait for ack or nak
   I2C1-SR2 h@ drop                           \ clear ACK flag
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
   i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag
-  \ Register end of transmission handler
-  ['] i2c-irq-txdone irq-dma1_6 !
-  %0011000010011010 DMA1_CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
-  16 bit NVIC_ISER0 !
-  \ Start transmission
-  \ if n > 0:
-  \ Register end of receive handler
-  \ Start reception
-  \ stop?
 ;
 
 : >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
