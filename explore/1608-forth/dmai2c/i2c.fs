@@ -1,3 +1,14 @@
+pc13 constant led
+
+: led-init             omode-pp led io-mode! ;
+: led-on               led ioc! ;
+: led-off              led ios! ;
+: on-cycle   ( n -- )  led-on ms led-off ;
+: off-cycle  ( n -- )  20 swap - ms ;
+: cycle      ( n -- )  dup on-cycle off-cycle ;
+: dim        ( n -- )  led-init begin dup cycle key? until drop ;
+
+
 \ Hardware I2C driver for STM32F103.
 
 \ Define pins
@@ -161,7 +172,9 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-tx-stop           \ irq handler for DMA transmission done
+  led-on
   0 bit DMA1-CCR6 bic!
+  11 bit I2C1-CR2 hbic!
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
   i2c-EV8_2 i2c-stop
   begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
@@ -180,19 +193,29 @@ $40005800 constant I2C2
   else
     ['] i2c-irq-tx-rx   irq-dma1_6 !
   then
-  %0011000010011010 DMA1-CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
-  16 bit NVIC_ISER0 !
-  \ Configure DMA
-  i2c.txbuf 4 + DMA1-CMAR6 !
-  I2C1-DR       DMA1-CPAR6 !
-  dup DMA1-CNDTR6 !                         \ Count
-  \ Start transmission (will wait for I2C1 to be ready)
-  0 bit DMA1-CCR6 bis!                      \ DMAEN
-
+  \ Wait for addr and clear it
   i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait    \ Wait for ack or nak
   I2C1-SR2 h@ drop                           \ clear ACK flag
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
   i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag
+
+  \ Stop if nothing to send
+
+  i2c.txbuf ring# 0= if
+    i2c-stop
+    begin 9 bit I2C1-CR1 hbit@ 0= until
+  else
+    \ Configure DMA
+    %0011000010011010 DMA1-CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
+    16 bit NVIC_ISER0 !
+    i2c.txbuf 4 + DMA1-CMAR6 !
+    I2C1-DR       DMA1-CPAR6 !
+    i2c.txbuf ring# DMA1-CNDTR6 !              \ Count
+    \ Start transmission (will wait for I2C1 to be ready)
+    11 bit I2C1-CR2 hbis!                     \ DMAEN
+    0 bit DMA1-CCR6 bis!                       \ DMAEN
+
+  then
 ;
 
 : >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
@@ -226,3 +249,16 @@ $40005800 constant I2C2
       then
     loop
   16 +loop ;
+
+
+
+\ Debugging
+
+
+
+led-init led-off
+i2c? cr
+i2c-init
+$40 i2c-addr 0 i2c-xfer .
+i2c? cr
+$41 i2c-addr 0 i2c-xfer .
