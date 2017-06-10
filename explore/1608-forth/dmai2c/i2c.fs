@@ -14,7 +14,7 @@ i2c.rxbuf i2c-bufsize init-ring
 
 \ Variables
 0 variable i2c.addr
-o variable i2c.cnt
+0 variable i2c.cnt
 
 \ Register definitions
 $40005400 constant I2C1
@@ -30,18 +30,23 @@ $40005800 constant I2C2
      RCC $10 + constant RCC-APB1RSTR
      RCC $14 + constant RCC-AHBENR
 \ $40020000 constant DMA1
-    \ DMA1 $00 + constant DMA1-ISR
-    \ DMA1 $04 + constant DMA1-IFCR
-    \ DMA1 $08 + constant DMA1-CCR1
-    DMA1 $44 + constant DMA1-CCR4
-    DMA1 $48 + constant DMA1-CNDTR4
-    DMA1 $4C + constant DMA1-CPAR4
-    DMA1 $50 + constant DMA1-CMAR4
-    DMA1 $58 + constant DMA1-CCR5
-    DMA1 $5C + constant DMA1-CNDTR5
-    DMA1 $60 + constant DMA1-CPAR5
-    DMA1 $64 + constant DMA1-CMAR5
+   \ DMA1 $00 + constant DMA1-ISR
+   \ DMA1 $04 + constant DMA1-IFCR
 
+    DMA1 20 6 1- * + 
+    dup $08 + constant DMA1-CCR6
+    dup $0c + constant DMA1-CNDTR6
+    dup $10 + constant DMA1-CPAR6
+    dup $14 + constant DMA1-CMAR6
+    drop
+    
+    DMA1 20 7 1- * + 
+    dup $08 + constant DMA1-CCR7
+    dup $0c + constant DMA1-CNDTR7
+    dup $10 + constant DMA1-CPAR7
+    dup $14 + constant DMA1-CMAR7
+    drop
+         
     $E000E000 constant NVIC  
     NVIC $4 + constant NVIC_ICTR
     NVIC $F00 + constant NVIC_STIR
@@ -85,7 +90,7 @@ $40005800 constant I2C2
 : i2c-SR1-flag? I2C1-SR1 hbit@ ;
 : i2c-SR2-flag? I2C1-SR2 hbit@ ;
 : i2c-SR1-wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? or until 2drop ; \ Waits until SR1 meets bit mask or timeout
-: i2c-busy?   ( -- b) i2c-SR2-BUSY I2C1-SR2-flag? 0<> ;
+: i2c-busy?   ( -- b) i2c-SR2-BUSY i2c-SR2-flag? 0<> ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init ( -- )
@@ -156,8 +161,8 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-tx-stop           \ irq handler for DMA transmission done
-  0 bit DMA1_CCR6 bic!
-  21 bit DMA1_IFCR bis!     \ CTCIF6, clear transfer complete flag
+  0 bit DMA1-CCR6 bic!
+  21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
   i2c-EV8_2 i2c-stop
   begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
 ;
@@ -175,14 +180,14 @@ $40005800 constant I2C2
   else
     ['] i2c-irq-tx-rx   irq-dma1_6 !
   then
-  %0011000010011010 DMA1_CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
+  %0011000010011010 DMA1-CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
   16 bit NVIC_ISER0 !
   \ Configure DMA
   i2c.txbuf 4 + DMA1-CMAR6 !
   I2C1-DR       DMA1-CPAR6 !
-  dup DMA1_CNDTR6 !                         \ Count
+  dup DMA1-CNDTR6 !                         \ Count
   \ Start transmission (will wait for I2C1 to be ready)
-  0 bit DMA1_CCR6 bis!                      \ DMAEN
+  0 bit DMA1-CCR6 bis!                      \ DMAEN
 
   i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait    \ Wait for ack or nak
   I2C1-SR2 h@ drop                           \ clear ACK flag
@@ -191,11 +196,11 @@ $40005800 constant I2C2
 ;
 
 : >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
-  i2c-txbuf >ring ;
+  i2c.txbuf >ring ;
 
 : i2c>
-  begin i2c-rxbuf ring# 0<> until 
-  i2c-rxbuf ring> ;
+  begin i2c.rxbuf ring# 0<> until 
+  i2c.rxbuf ring> ;
 
 : i2c>h
     i2c>   i2c>  8 lshift or
