@@ -180,7 +180,33 @@ $40005800 constant I2C2
   begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
 ;
 
+: i2c-irq-rx-stop
+;
+
+
 : i2c-irq-tx-rx             \ irq handler for DMA transmission done
+  led-on
+  0 bit DMA1-CCR6 bic!
+  11 bit I2C1-CR2 hbic!
+  21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
+
+  \ Configure DMA
+  %0011000010001010 DMA1-CCR7 !              \ 8 bit high prio periph to mem error&finish interrupt
+  ['] i2c-irq-tx-stop irq-dma1_7 !
+  17 bit NVIC_ISER0 !
+  i2c.rxbuf 4 + DMA1-CMAR7 !
+  I2C1-DR       DMA1-CPAR7 !
+  i2c.cnt @     DMA1-CNDTR7 !              \ Count
+  \ Start transmission (will wait for I2C1 to be ready)
+  11 bit I2C1-CR2 hbis!                     \ DMAEN
+  0 bit DMA1-CCR7 bis!                       \ DMAEN
+  
+  
+  i2c-start                 \ Restart
+  i2c.addr @ 1 or           \ Read bit
+  i2c-DR!
+  i2c-EV6
+  
 ;
 
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
@@ -254,7 +280,8 @@ $40005800 constant I2C2
 
 \ Debugging
 
-
+: blip $3f i2c-addr $ff >i2c $0 >i2c 0 i2c-xfer . i2c? cr ;
+: blip2 $3f i2c-addr 15 0 do i dup . >i2c loop 0 i2c-xfer . i2c? cr ;
 
 led-init led-off
 i2c? cr
@@ -262,3 +289,4 @@ i2c-init
 $40 i2c-addr 0 i2c-xfer .
 i2c? cr
 $41 i2c-addr 0 i2c-xfer .
+
