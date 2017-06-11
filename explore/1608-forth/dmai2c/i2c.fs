@@ -172,7 +172,7 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-tx-stop           \ irq handler for DMA transmission done
-  led-on
+  led-off
   0 bit DMA1-CCR6 bic!
   11 bit I2C1-CR2 hbic!
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
@@ -181,8 +181,21 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-rx-stop
+  led-off
+  11 bit I2C1-CR2  hbic!     \ DMAEN
+  0  bit DMA1-CCR7  bic!     \ DMAEN
+  25 bit DMA1-IFCR  bis!     \ CTCIF7
+  i2c-stop
+  begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
+
+  \ Let X buffer know of new data
+  i2c.rxbuf 1 + i2c.cnt !
 ;
 
+\ TODO
+\
+\ $3f i2c-addr $ff >i2c 1 i2c-xfer  ok.
+\ i2c.cnt @ . 536872105  ok.
 
 : i2c-irq-tx-rx             \ irq handler for DMA transmission done
   led-on
@@ -192,21 +205,20 @@ $40005800 constant I2C2
 
   \ Configure DMA
   %0011000010001010 DMA1-CCR7 !              \ 8 bit high prio periph to mem error&finish interrupt
-  ['] i2c-irq-tx-stop irq-dma1_7 !
-  17 bit NVIC_ISER0 !
-  i2c.rxbuf 4 + DMA1-CMAR7 !
-  I2C1-DR       DMA1-CPAR7 !
+  ['] i2c-irq-rx-stop irq-dma1_7 !
+  17 bit        NVIC_ISER0  !
+  i2c.rxbuf 4 + DMA1-CMAR7  !
+  I2C1-DR       DMA1-CPAR7  !
   i2c.cnt @     DMA1-CNDTR7 !              \ Count
   \ Start transmission (will wait for I2C1 to be ready)
-  11 bit I2C1-CR2 hbis!                     \ DMAEN
-  0 bit DMA1-CCR7 bis!                       \ DMAEN
-  
-  
+  11 bit I2C1-CR2  hbis!                     \ DMAEN
+  12 bit I2C1-CR2  hbis!                     \ LAST
+  0  bit DMA1-CCR7 bis!                      \ DMAEN
+  \ Send start  
   i2c-start                 \ Restart
-  i2c.addr @ 1 or           \ Read bit
-  i2c-DR!
+  i2c.addr @ 1 or i2c-DR!   \ Read address
   i2c-EV6
-  
+  led-on
 ;
 
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
@@ -238,7 +250,7 @@ $40005800 constant I2C2
     I2C1-DR       DMA1-CPAR6 !
     i2c.txbuf ring# DMA1-CNDTR6 !              \ Count
     \ Start transmission (will wait for I2C1 to be ready)
-    11 bit I2C1-CR2 hbis!                     \ DMAEN
+    11 bit I2C1-CR2 hbis!                      \ DMAEN
     0 bit DMA1-CCR6 bis!                       \ DMAEN
 
   then
