@@ -189,7 +189,7 @@ $40005800 constant I2C2
   begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
 
   \ Let X buffer know of new data
-  i2c.rxbuf 1 + i2c.cnt !
+  i2c.cnt @ i2c.rxbuf 1+ !
 ;
 
 \ TODO
