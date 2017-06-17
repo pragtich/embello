@@ -8,7 +8,6 @@ pc13 constant led
 : cycle      ( n -- )  dup on-cycle off-cycle ;
 : dim        ( n -- )  led-init begin dup cycle key? until drop ;
 
-
 \ Hardware I2C driver for STM32F103.
 
 \ Define pins
@@ -94,6 +93,7 @@ $40005800 constant I2C2
 21 bit constant APB1-RST-I2C1
 
 0  bit constant i2c-SR1-SB
+2  bit constant i2c-SR1-BTF
 7  bit constant i2c-SR1-TxE
 10 bit constant i2c-SR1-AF
 1  bit constant i2c-SR2-BUSY
@@ -156,6 +156,10 @@ $40005800 constant I2C2
 
 \ STM Events
 : i2c-EV8_2 i2c-SR1-BTF  i2c-SR1-wait ;
+: i2c-EV6a i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait ; \ performs the wait, does not clear ADDR
+: i2c-EV6b I2C1-SR1 h@ drop I2C1-SR2 h@ drop ;       \ clears ADDR
+: i2c-EV6 i2c-EV6a i2c-EV6b ;                        \ Performs full EV6 action
+
 
 \ API (should be compatible with i2c-bb
 
@@ -190,7 +194,7 @@ $40005800 constant I2C2
   begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
 
   \ Let X buffer know of new data
-  i2c.cnt @ i2c.rxbuf 1+ !
+  i2c.cnt @ i2c.rxbuf 1+ c!
 ;
 
 \ TODO
@@ -212,6 +216,7 @@ $40005800 constant I2C2
   ['] i2c-irq-rx-stop irq-dma1_7 !
   17 bit        NVIC_ISER0  !
   i2c.rxbuf 4 + DMA1-CMAR7  !
+  \ scratch dma1-cmar7 !
   I2C1-DR       DMA1-CPAR7  !
   i2c.cnt @     DMA1-CNDTR7 !              \ Count
   \ Start transmission (will wait for I2C1 to be ready)
@@ -222,7 +227,7 @@ $40005800 constant I2C2
   i2c-start                 \ Restart
   i2c.addr @ 1 or i2c-DR!   \ Read address
   i2c-EV6
-  led-on
+\  led-on
 ;
 
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
