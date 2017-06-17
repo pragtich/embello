@@ -226,7 +226,7 @@ $40005800 constant I2C2
 
   dup i2c.cnt !
   \ Register end of transmission handler
-  dup 0= if
+  0= if
     ['] i2c-irq-tx-stop irq-dma1_6 !
   else
     ['] i2c-irq-tx-rx   irq-dma1_6 !
@@ -237,7 +237,7 @@ $40005800 constant I2C2
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
   i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag
 
-  \ Stop if nothing to send
+  \ Stop if nothing to send   TODO this is wrong. When no tx, we need to go straight to rx somehow
 
   i2c.txbuf ring# 0= if
     i2c-stop
