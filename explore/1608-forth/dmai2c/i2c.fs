@@ -94,6 +94,7 @@ $40005800 constant I2C2
 21 bit constant APB1-RST-I2C1
 
 0  bit constant i2c-SR1-SB
+7  bit constant i2c-SR1-TxE
 10 bit constant i2c-SR1-AF
 1  bit constant i2c-SR2-BUSY
 
@@ -203,6 +204,9 @@ $40005800 constant I2C2
   11 bit I2C1-CR2 hbic!
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
 
+  \ Wait for TxE: don't clobber last byte
+  i2c-SR1-TxE i2c-SR1-wait
+  
   \ Configure DMA
   %0011000010001010 DMA1-CCR7 !              \ 8 bit high prio periph to mem error&finish interrupt
   ['] i2c-irq-rx-stop irq-dma1_7 !
@@ -223,6 +227,7 @@ $40005800 constant I2C2
 
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
+  \ 
 
   dup i2c.cnt !
   \ Register end of transmission handler
