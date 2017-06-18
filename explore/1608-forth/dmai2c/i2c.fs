@@ -208,7 +208,7 @@ $40005800 constant I2C2
   \ Wait for TxE: don't clobber last byte
   i2c-SR1-TxE i2c-SR1-wait
   
-  \ Configure DMA
+  \ Configure DMA 7
   %0011000010001010 DMA1-CCR7 !              \ 8 bit high prio periph to mem error&finish interrupt
   ['] i2c-irq-rx-stop irq-dma1_7 !
   17 bit        NVIC_ISER0  !
@@ -227,49 +227,66 @@ $40005800 constant I2C2
 \  led-on
 ;
 
+: i2c-send-addr             ( rx? -- nak )
+  i2c.addr @  or i2c-DR!   \ Read address
+  i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
+  i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK fl
+  i2c-EV6
+;
+
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
   \ 
 
   dup i2c.cnt !
-  \ Register end of transmission handler
-  0= if
-    ['] i2c-irq-tx-stop irq-dma1_6 !
-  else
-    ['] i2c-irq-tx-rx   irq-dma1_6 !
-  then
+  i2c.txbuf ring# 0= swap                ( #tx>0 #rx )
 
-  i2c.txbuf ring# 0= if
-    \ i2c-stop
-    \ begin 9 bit I2C1-CR1 hbit@ 0= until
-    -1
-  else
-    \ Configure DMA
-    %0011000010011010 DMA1-CCR6 !              \ 8 bit high prio mem to peripheral error&finish interrupt
-    16 bit NVIC_ISER0 !
-    i2c.txbuf 4 + DMA1-CMAR6 !
-    I2C1-DR       DMA1-CPAR6 !
-    i2c.txbuf ring# DMA1-CNDTR6 !              \ Count
-    \ Start transmission (will wait for I2C1 to be ready)
-    11 bit I2C1-CR2 hbis!                      \ DMAEN
-    0 bit DMA1-CCR6 bis!                       \ DMAEN
+  \ Configure DMA 6
+  %0011000010011010 DMA1-CCR6   !
+  16 bit            NVIC_ISER0  !
+  i2c.txbuf 4 +     DMA1-CMAR6  !
+  I2C1-DR           DMA1-CPAR6  !
+  i2c.txbuf ring#   DMA1-CNDTR6 !            \ Count
+  \ Configure DMA 7
+  %0011000010001010   DMA1-CCR7  !   
+  ['] i2c-irq-rx-stop irq-dma1_7 !
+  17 bit              NVIC_ISER0  !
+  i2c.rxbuf 4 +       DMA1-CMAR7  !
+  I2C1-DR             DMA1-CPAR7  !
+  i2c.cnt @           DMA1-CNDTR7 !              \ Count
+  
+  case  \ #rx 
+    0 of
+      if                                 \ #tx=0
+	i2c-start
+	1 i2c-send-addr
+	i2c-stop
+	\ TODO $3a i2c-addr 0 i2c-xfer .  0  ok.
 
-    i2c-start
-    i2c.addr @ i2c-DR!                        \ Sends address (write mode)
-    i2c-EV6                                    \ Wait for addr and clear
-    i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
-    i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag
-
-  then
-
-
-  \ Wait for addr and clear it
-  \ i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait    \ Wait for ack or nak
-  \ I2C1-SR2 h@ drop                           \ clear ACK flag
-
-  \ Stop if nothing to send   TODO this is wrong. When no tx, we need to go straight to rx somehow
-  \ TODOO: case for rx# = 1, no DMA possible
-
+      else                               \ #tx>0
+      then
+    endof
+    1 of
+      if                                 \ #tx=0
+      else
+      then
+      
+    endof
+    \ #rx>1
+    if                                   \ #tx=0
+      11 bit I2C1-CR2  hbis!                     \ DMAEN
+      12 bit I2C1-CR2  hbis!                     \ LAST
+      0  bit DMA1-CCR7 bis!                      \ DMAEN
+      ['] i2c-irq-rx-stop irq-dma1_7 !
+      
+      i2c-start
+      1 i2c-send-addr
+      \ DMA will handle rx from here on
+    else                                 \ #tx>0
+    then
+  endcase
+  
+ 
 ;
 
 : >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
@@ -314,7 +331,7 @@ $40005800 constant I2C2
 led-init led-off
 i2c? cr
 i2c-init
- $40 i2c-addr 0 i2c-xfer .
+\ $40 i2c-addr 0 i2c-xfer .
 i2c? cr
- $41 i2c-addr 0 i2c-xfer .
+\ $41 i2c-addr 0 i2c-xfer .
 
