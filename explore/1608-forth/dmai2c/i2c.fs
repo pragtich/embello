@@ -1,5 +1,18 @@
 pc13 constant led
 
+
+\ TODO
+\ \ t1a 0 
+\ 00000401 00000024 00000000 00000000  ok.
+\ t1b -1 
+\ 00000401 00000024 00000000 00000000  ok.
+\ t2a 0 01
+\ 00000001 00000024 00000000 00000000  ok.
+\ t2b -1 81
+\ 00000001 00000024 00000000 00000000  ok.
+\ t3a -1365210930 0101
+\ 00000401 00001024 00000000 00000000 Stack underflow
+
 : led-init             omode-pp led io-mode! ;
 : led-on               led ioc! ;
 : led-off              led ios! ;
@@ -98,6 +111,10 @@ $40005800 constant I2C2
 10 bit constant i2c-SR1-AF
 1  bit constant i2c-SR2-BUSY
 
+\ Bit setting
+: i2c-ACK-1 ( -- ) 10 bit I2C1-CR1 hbis! ;
+: i2c-ACK-0 ( -- ) 10 bit I2C1-CR1 hbic! ;
+
 \ status checks
 : i2c-SR1-flag? I2C1-SR1 hbit@ ;
 : i2c-SR2-flag? I2C1-SR2 hbit@ ;
@@ -159,7 +176,13 @@ $40005800 constant I2C2
 : i2c-EV6a i2c-SR1-ADDR i2c-SR1-AF or i2c-SR1-wait ; \ performs the wait, does not clear ADDR
 : i2c-EV6b I2C1-SR1 h@ drop I2C1-SR2 h@ drop ;       \ clears ADDR
 : i2c-EV6 i2c-EV6a i2c-EV6b ;                        \ Performs full EV6 action
-: i2c-EV6_3 i2c-EV6a i2c-ACK-0 i2c-EV6b i2c-stop! ;
+: i2c-EV6_3
+  i2c-EV6a
+  i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
+  i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK fl
+  i2c-ACK-0
+  i2c-EV6b
+  i2c-stop! ;
 : i2c-EV7   i2c-SR1-RxNE i2c-SR1-wait ;
 
 \ API (should be compatible with i2c-bb
@@ -171,6 +194,7 @@ $40005800 constant I2C2
   i2c.rxbuf i2c-bufsize init-ring
   shl i2c.addr !
 
+  i2c-ACK-1                 \ reset ack in case we had an rx-1 before
   \ i2c-EV5
 ;
 
@@ -202,14 +226,18 @@ $40005800 constant I2C2
 
 
 : i2c-send-addr             ( rx? -- nak )
-  i2c.addr @  or i2c-DR!   \ Read address
+  \ TODO t3c NAK=-1, why?
+
+  i2c.addr @  or i2c-DR!                     \ calculate address
+  i2c-EV6a                                   \ Wait for addr to happen
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
   i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK fl
-  i2c-EV6
+  i2c-EV6b                                   \ end addr
 ;
 
 : i2c-irq-tx-rx             \ irq handler for DMA transmission done
   led-on
+
   0 bit DMA1-CCR6 bic!
   11 bit I2C1-CR2 hbic!
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
@@ -255,10 +283,13 @@ $40005800 constant I2C2
 : i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
   \ 
-
+  \ TODO what to do upon NAK when #rx > 0? Currently receiving junk anyway
   dup i2c.cnt !
-  i2c.txbuf ring# 0= swap                ( #tx>0 #rx )
-
+  \ dup .
+  i2c.txbuf ring#
+  \ dup .
+  0= swap                ( #tx>0 #rx )
+  \ ." tx rx " 2dup . .
   12 bit I2C1-CR2  hbic!                     \ LAST
 
   \ Configure DMA 6
@@ -278,7 +309,7 @@ $40005800 constant I2C2
     0 of
       if                                 \ #tx=0
 	i2c-start
-	1 i2c-send-addr
+	0 i2c-send-addr
 	i2c-stop
 	\ TODO $3a i2c-addr 0 i2c-xfer .  0  ok.
       else                               \ #tx>0
@@ -306,6 +337,8 @@ $40005800 constant I2C2
       then
     endof
     \ #rx>1
+    \ ." tx rx " 2dup . .
+    drop
     if                                   \ #tx=0
       11 bit I2C1-CR2  hbis!                     \ DMAEN
       12 bit I2C1-CR2  hbis!                     \ LAST
@@ -315,13 +348,17 @@ $40005800 constant I2C2
       i2c-start
       1 i2c-send-addr
       \ DMA will handle rx from here on
-    else                                 \ #tx>0
+    else
+      \ : t." xfer " \ #tx>0
       11 bit I2C1-CR2  hbis!                     \ DMAEN
       0  bit DMA1-CCR6 bis!                      \ DMAEN
       ['] i2c-irq-tx-rx irq-dma1_6 !
+      led-on
 
       i2c-start
       0 i2c-send-addr
+      led-off
+      
       \ DMA will handle tx from here, then transfer to rx
     then
   endcase
