@@ -291,13 +291,13 @@ $40005800 constant I2C2
   12 bit I2C1-CR2  hbic!                     \ LAST
 
   \ Configure DMA 6
-  %0011000010010010 DMA1-CCR6   !
+  %0011000010011010 DMA1-CCR6   !
   16 bit            NVIC_ISER0  !
   i2c.txbuf 4 +     DMA1-CMAR6  !
   I2C1-DR           DMA1-CPAR6  !
   i2c.txbuf ring#   DMA1-CNDTR6 !            \ Count
   \ Configure DMA 7
-  %0011000010000010   DMA1-CCR7  !   
+  %0011000010001010   DMA1-CCR7  !   
   17 bit              NVIC_ISER0  !
   i2c.rxbuf 4 +       DMA1-CMAR7  !
   I2C1-DR             DMA1-CPAR7  !
@@ -324,6 +324,7 @@ $40005800 constant I2C2
       if                                 \ #tx=0
 	i2c-start
 	i2c-rx-1
+	i2c-stop
       else                               \ #tx>0
 	11 bit I2C1-CR2  hbis!                     \ DMAEN
 	0  bit DMA1-CCR6 bis!                      \ DMAEN
@@ -331,6 +332,8 @@ $40005800 constant I2C2
 
 	i2c-start
 	0 i2c-send-addr
+	\ TODO: i2c hang when NAK
+	\ $49 i2c-addr 3 >i2c $ab >i2c  $cd >i2c 2 i2c-xfer . i2c> h.2 i2c> h.2 
 	\ DMA will handle tx from here, then transfer to rx
       then
     endof
@@ -346,6 +349,9 @@ $40005800 constant I2C2
       led-off
       1 i2c-send-addr
       led-on
+      dup 0<> if
+	i2c-stop
+      then
       \ DMA will handle rx from here on
     else
       \ : t." xfer " \ #tx>0
