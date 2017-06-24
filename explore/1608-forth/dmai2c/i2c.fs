@@ -208,14 +208,11 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-rx-stop
-  led-off
   11 bit I2C1-CR2  hbic!     \ DMAEN
   0  bit DMA1-CCR7  bic!     \ DMAEN
   25 bit DMA1-IFCR  bis!     \ CTCIF7
   i2c-stop
-  led-on
   begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
-  led-off
   \ Let X buffer know of new data
   i2c.cnt @ i2c.rxbuf 1+ c!
 ;
@@ -228,7 +225,6 @@ $40005800 constant I2C2
 
 : i2c-send-addr             ( rx? -- nak )
   \ TODO t3c NAK=-1, why?
-
   i2c.addr @  or i2c-DR!                     \ calculate address
   i2c-EV6a                                   \ Wait for addr to happen
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
@@ -345,11 +341,8 @@ $40005800 constant I2C2
       12 bit I2C1-CR2  hbis!                     \ LAST
       0  bit DMA1-CCR7 bis!                      \ DMAEN
       ['] i2c-irq-rx-stop irq-dma1_7 !
-      led-on
       i2c-start
-      led-off
       1 i2c-send-addr
-      led-on
       \ DMA will handle rx from here on
     else
       \ : t." xfer " \ #tx>0
@@ -368,6 +361,9 @@ $40005800 constant I2C2
   \ If nak, stop communication
   dup 0<> if
     i2c-stop
+    i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag; necessary?
+    9 bit I2C1-CR1 hbic! 
+
   then
 
 ;
@@ -390,6 +386,7 @@ $40005800 constant I2C2
 \ Own additions to API
 
 : i2c-probe ( addr -- nak )
+  i2c-addr 0 i2c-xfer
   ;
 
 \ High level transactions
