@@ -157,6 +157,7 @@ $40005800 constant I2C2
 
   0  bit RCC-AHBENR bis!   \ Enable DMA peripheral clock
   0  bit DMA1-CCR6  bic!   \ Disable it for now (ch 6 = I2C1 TX)
+  0  bit DMA1-CCR7  bic!   \ Disable it for now (ch 7 = I2C1 RX)
  ;
 
 \ debugging
@@ -199,7 +200,6 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-tx-stop           \ irq handler for DMA transmission done
-  led-off
   0 bit DMA1-CCR6 bic!
   11 bit I2C1-CR2 hbic!
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
@@ -236,8 +236,6 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-tx-rx             \ irq handler for DMA transmission done
-  led-on
-
   0 bit DMA1-CCR6 bic!
   11 bit I2C1-CR2 hbic!
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
@@ -274,7 +272,7 @@ $40005800 constant I2C2
   i2c-start                 \ Restart
   
   i2c.addr @ 1 or i2c-DR!   \ Read address
-  i2c-EV6_3
+  i2c-EV6_3 drop            \ don't want nak value
   i2c-EV7
   I2C1-DR @ i2c.rxbuf >ring
 ;
@@ -293,13 +291,13 @@ $40005800 constant I2C2
   12 bit I2C1-CR2  hbic!                     \ LAST
 
   \ Configure DMA 6
-  %0011000010011010 DMA1-CCR6   !
+  %0011000010010010 DMA1-CCR6   !
   16 bit            NVIC_ISER0  !
   i2c.txbuf 4 +     DMA1-CMAR6  !
   I2C1-DR           DMA1-CPAR6  !
   i2c.txbuf ring#   DMA1-CNDTR6 !            \ Count
   \ Configure DMA 7
-  %0011000010001010   DMA1-CCR7  !   
+  %0011000010000010   DMA1-CCR7  !   
   17 bit              NVIC_ISER0  !
   i2c.rxbuf 4 +       DMA1-CMAR7  !
   I2C1-DR             DMA1-CPAR7  !
@@ -338,29 +336,29 @@ $40005800 constant I2C2
     endof
     \ #rx>1
     \ ." tx rx " 2dup . .
-    drop
-    if                                   \ #tx=0
+    swap if                                   \ #tx=0
       11 bit I2C1-CR2  hbis!                     \ DMAEN
       12 bit I2C1-CR2  hbis!                     \ LAST
       0  bit DMA1-CCR7 bis!                      \ DMAEN
       ['] i2c-irq-rx-stop irq-dma1_7 !
-      
+      led-on
       i2c-start
+      led-off
       1 i2c-send-addr
+      led-on
       \ DMA will handle rx from here on
     else
       \ : t." xfer " \ #tx>0
       11 bit I2C1-CR2  hbis!                     \ DMAEN
       0  bit DMA1-CCR6 bis!                      \ DMAEN
       ['] i2c-irq-tx-rx irq-dma1_6 !
-      led-on
 
       i2c-start
       0 i2c-send-addr
-      led-off
-      
       \ DMA will handle tx from here, then transfer to rx
     then
+      
+    swap                                         \ put case criterium at TOS
   endcase
 ;
 
