@@ -213,8 +213,9 @@ $40005800 constant I2C2
   0  bit DMA1-CCR7  bic!     \ DMAEN
   25 bit DMA1-IFCR  bis!     \ CTCIF7
   i2c-stop
+  led-on
   begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
-
+  led-off
   \ Let X buffer know of new data
   i2c.cnt @ i2c.rxbuf 1+ c!
 ;
@@ -349,9 +350,6 @@ $40005800 constant I2C2
       led-off
       1 i2c-send-addr
       led-on
-      dup 0<> if
-	i2c-stop
-      then
       \ DMA will handle rx from here on
     else
       \ : t." xfer " \ #tx>0
@@ -362,10 +360,16 @@ $40005800 constant I2C2
       i2c-start
       0 i2c-send-addr
       \ DMA will handle tx from here, then transfer to rx
+
     then
-      
+
     swap                                         \ put case criterium at TOS
   endcase
+  \ If nak, stop communication
+  dup 0<> if
+    i2c-stop
+  then
+
 ;
 
 : >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
