@@ -199,6 +199,8 @@ $40005800 constant I2C2
   \ i2c-EV5
 ;
 
+
+
 : i2c-irq-tx-stop           \ irq handler for DMA transmission done
   0 bit DMA1-CCR6 bic!
   11 bit I2C1-CR2 hbic!
@@ -275,18 +277,15 @@ $40005800 constant I2C2
 ;
 
 
-: i2c-xfer ( u -- nak ) \ prepares for reading an nbyte reply.
+: i2c-xfer ( n -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
   \ 
-  \ TODO what to do upon NAK when #rx > 0? Currently receiving junk anyway
   dup i2c.cnt !
-  \ dup .
-  i2c.txbuf ring#
-  \ dup .
+  i2c.txbuf ring#        ( #rx #tx   )
   0= swap                ( #tx>0 #rx )
-  \ ." tx rx " 2dup . .
-  12 bit I2C1-CR2  hbic!                     \ LAST
 
+  \ Configure I2C1 peripheral
+  12 bit I2C1-CR2  hbic!                     \ LAST
   \ Configure DMA 6
   %0011000010011010 DMA1-CCR6   !
   16 bit            NVIC_ISER0  !
@@ -294,22 +293,20 @@ $40005800 constant I2C2
   I2C1-DR           DMA1-CPAR6  !
   i2c.txbuf ring#   DMA1-CNDTR6 !            \ Count
   \ Configure DMA 7
-  %0011000010001010   DMA1-CCR7  !   
-  17 bit              NVIC_ISER0  !
-  i2c.rxbuf 4 +       DMA1-CMAR7  !
-  I2C1-DR             DMA1-CPAR7  !
-  i2c.cnt @           DMA1-CNDTR7 !              \ Count
-  
-  case  \ #rx 
-    0 of
-      if                                 \ #tx=0
+  %0011000010001010 DMA1-CCR7   !   
+  17 bit            NVIC_ISER0  !
+  i2c.rxbuf 4 +     DMA1-CMAR7  !
+  I2C1-DR           DMA1-CPAR7  !
+  i2c.cnt @         DMA1-CNDTR7 !            \ Count
+  case \ #rx 
+    0 of \ #rx=0
+      if                                     \ #tx=0
 	i2c-start
 	0 i2c-send-addr
 	i2c-stop
-	\ TODO $3a i2c-addr 0 i2c-xfer .  0  ok.
-      else                               \ #tx>0
-	11 bit I2C1-CR2  hbis!                     \ DMAEN
-	0  bit DMA1-CCR6 bis!                      \ DMAEN
+      else                                   \ #tx>0
+	11 bit I2C1-CR2  hbis!               \ DMAEN
+	0  bit DMA1-CCR6 bis!                \ DMAEN
 	['] i2c-irq-tx-stop irq-dma1_6 !
 
 	i2c-start
@@ -317,55 +314,48 @@ $40005800 constant I2C2
 	\ DMA will handle tx from here, then stop
       then
     endof
-    1 of
-      if                                 \ #tx=0
+    1 of \ #rx=1
+      if                                     \ #tx=0
 	i2c-start
 	i2c-rx-1
 	i2c-stop
-      else                               \ #tx>0
-	11 bit I2C1-CR2  hbis!                     \ DMAEN
-	0  bit DMA1-CCR6 bis!                      \ DMAEN
+      else                                   \ #tx>0
+	11 bit I2C1-CR2  hbis!               \ DMAEN
+	0  bit DMA1-CCR6 bis!                \ DMAEN
 	['] i2c-irq-rx1 irq-dma1_6 !
 
 	i2c-start
 	0 i2c-send-addr
-	\ TODO: i2c hang when NAK
-	\ $49 i2c-addr 3 >i2c $ab >i2c  $cd >i2c 2 i2c-xfer . i2c> h.2 i2c> h.2 
 	\ DMA will handle tx from here, then transfer to rx
       then
     endof
-    \ #rx>1
-    \ ." tx rx " 2dup . .
-    swap if                                   \ #tx=0
-      11 bit I2C1-CR2  hbis!                     \ DMAEN
-      12 bit I2C1-CR2  hbis!                     \ LAST
-      0  bit DMA1-CCR7 bis!                      \ DMAEN
-      ['] i2c-irq-rx-stop irq-dma1_7 !
-      i2c-start
-      1 i2c-send-addr
-      \ DMA will handle rx from here on
-    else
-      \ : t." xfer " \ #tx>0
-      11 bit I2C1-CR2  hbis!                     \ DMAEN
-      0  bit DMA1-CCR6 bis!                      \ DMAEN
-      ['] i2c-irq-tx-rx irq-dma1_6 !
-
-      i2c-start
-      0 i2c-send-addr
-      \ DMA will handle tx from here, then transfer to rx
-
-    then
-
-    swap                                         \ put case criterium at TOS
+      \ #rx>1
+      swap if                                \ #tx=0
+	11 bit I2C1-CR2  hbis!               \ DMAEN
+	12 bit I2C1-CR2  hbis!               \ LAST
+	0  bit DMA1-CCR7 bis!                \ DMAEN
+	['] i2c-irq-rx-stop irq-dma1_7 !
+	
+	i2c-start
+	1 i2c-send-addr
+	\ DMA will handle rx from here on
+      else \ #tx>0
+	11 bit I2C1-CR2  hbis!               \ DMAEN
+	0  bit DMA1-CCR6 bis!                \ DMAEN
+	['] i2c-irq-tx-rx irq-dma1_6 !
+	
+	i2c-start
+	0 i2c-send-addr
+	\ DMA will handle tx from here, then transfer to rx
+      then
+    swap                                     ( #rx nak )
   endcase
   \ If nak, stop communication
   dup 0<> if
     i2c-stop
-    i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK flag; necessary?
+    i2c-SR1-AF i2c1-SR1 hbic!                \ Clear the NAK flag; necessary?
     9 bit I2C1-CR1 hbic! 
-
   then
-
 ;
 
 : >i2c  ( u -- ) \ Queues byte u for transmission over i2c. Use after i2c-addr
