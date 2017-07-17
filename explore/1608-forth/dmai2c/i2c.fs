@@ -368,20 +368,18 @@ $40005800 constant I2C2
 
 ;
 
-: >i2c  ( u -- ) \ Sends a byte over i2c. Use after i2c-addr
+: >i2c  ( u -- ) \ Queues byte u for transmission over i2c. Use after i2c-addr
   i2c.txbuf >ring ;
 
-: i2c>
+: i2c>  ( -- u ) \ Receives 1 byte from i2c. Use after i2c-xfer. Waits.
   begin i2c.rxbuf ring# 0<> until 
   i2c.rxbuf ring> ;
 
-: i2c>h
-    i2c>   i2c>  8 lshift or
-;
+: i2c>h ( -- u ) \ Receives 16 bit word from i2c, lsb first.
+    i2c>   i2c>  8 lshift or ;
 
-: i2c>h_inv
-    i2c>  8 lshift i2c>  or
-;
+: i2c>h_inv ( -- u ) \ Receives 16 bit word from i2c, msb first.
+    i2c>  8 lshift i2c>  or ;
 
 \ Own additions to API
 
