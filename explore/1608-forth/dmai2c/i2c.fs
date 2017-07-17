@@ -188,45 +188,37 @@ $40005800 constant I2C2
 
 \ API (should be compatible with i2c-bb
 
-: i2c-addr ( u --)
-  \ Start a new transaction and send address in write mode
-  \ Does not wait for ADDR: i2x-xfer should do this
+: i2c-addr ( addr -- )
+  \ Initiate i2c transaction.
+  \ Does not actually start communication, because need to know #tx
   i2c.txbuf i2c-bufsize init-ring
   i2c.rxbuf i2c-bufsize init-ring
   shl i2c.addr !
 
-  i2c-ACK-1                 \ reset ack in case we had an rx-1 before
-  \ i2c-EV5
+  i2c-ACK-1                                  \ reset ack in case we had an rx-1 before
 ;
 
 
 
-: i2c-irq-tx-stop           \ irq handler for DMA transmission done
+: i2c-irq-tx-stop
   0 bit DMA1-CCR6 bic!
   11 bit I2C1-CR2 hbic!
-  21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
+  21 bit DMA1-IFCR bis!                      \ CTCIF6
   i2c-EV8_2 i2c-stop
-  begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
+  begin 9 bit I2C1-CR1 hbit@ 0= until        \ Wait for STOP to clear
 ;
 
 : i2c-irq-rx-stop
-  11 bit I2C1-CR2  hbic!     \ DMAEN
-  0  bit DMA1-CCR7  bic!     \ DMAEN
-  25 bit DMA1-IFCR  bis!     \ CTCIF7
+  11 bit I2C1-CR2  hbic!                     \ DMAEN
+  0  bit DMA1-CCR7  bic!                     \ DMAEN
+  25 bit DMA1-IFCR  bis!                     \ CTCIF7
   i2c-stop
-  begin 9 bit I2C1-CR1 hbit@ 0= until \ Wait for STOP to clear
-  \ Let X buffer know of new data
+  begin 9 bit I2C1-CR1 hbit@ 0= until        \ Wait for STOP to clear
+  \ Let RX buffer know of new data
   i2c.cnt @ i2c.rxbuf 1+ c!
 ;
 
-\ TODO
-\
-\ $3f i2c-addr $ff >i2c 1 i2c-xfer  ok.
-\ i2c.cnt @ . 536872105  ok.
-
-
 : i2c-send-addr             ( rx? -- nak )
-  \ TODO t3c NAK=-1, why?
   i2c.addr @  or i2c-DR!                     \ calculate address
   i2c-EV6a                                   \ Wait for addr to happen
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
@@ -234,10 +226,10 @@ $40005800 constant I2C2
   i2c-EV6b                                   \ end addr
 ;
 
-: i2c-irq-tx-rx             \ irq handler for DMA transmission done
+: i2c-irq-tx-rx 
   0 bit DMA1-CCR6 bic!
   11 bit I2C1-CR2 hbic!
-  21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
+  21 bit DMA1-IFCR bis!                      \ CTCIF6
 
   \ Wait for TxE: don't clobber last byte
   i2c-SR1-TxE i2c-SR1-wait
