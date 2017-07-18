@@ -165,12 +165,13 @@ $40005800 constant I2C2
 
 \ Low level register setting and reading
 : i2c-start! ( -- ) 8 bit I2C1-CR1 hbis! ;
-: i2c-start \ set start bit and wait for start condition
+: i2c-stop!  ( -- ) 9 bit I2C1-CR1 hbis! ;
+: i2c-start  ( -- ) \ set start bit and wait for start condition
   i2c-start! i2c-SR1-SB i2c-SR1-wait ;
-: i2c-stop!   ( -- )    9 bit I2C1-CR1 hbis! ;
-: i2c-stop  ( -- )  i2c-stop! i2c-SR2-MSL i2c-SR2-!wait ; \ stop and wait
+: i2c-stop   ( -- ) \ stop and wait
+  i2c-stop! i2c-SR2-MSL i2c-SR2-!wait ; 
 
-: i2c-DR!     ( c -- )  I2C1-DR c! ;            \ Writes data register
+: i2c-DR!    ( u -- )  I2C1-DR c! ;            \ Writes data register
 
 \ STM Events
 : i2c-EV8_2 i2c-SR1-BTF  i2c-SR1-wait ;
@@ -186,7 +187,9 @@ $40005800 constant I2C2
   i2c-stop! ;
 : i2c-EV7   i2c-SR1-RxNE i2c-SR1-wait ;
 
+
 \ API (should be compatible with i2c-bb
+
 
 : i2c-addr ( addr -- )
   \ Initiate i2c transaction.
@@ -197,8 +200,6 @@ $40005800 constant I2C2
 
   i2c-ACK-1                                  \ reset ack in case we had an rx-1 before
 ;
-
-
 
 : i2c-irq-tx-stop
   0 bit DMA1-CCR6 bic!
