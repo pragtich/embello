@@ -5,6 +5,8 @@
 
 include ttester.fs
 
+i2c-init
+
 ." Starting tests: " cr cr ." ------------- " cr
 T{ $3c i2c-probe -> 0  }T
 T{ $3d i2c-probe -> -1 }T
