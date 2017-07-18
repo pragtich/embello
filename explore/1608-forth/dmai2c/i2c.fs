@@ -1,26 +1,3 @@
-pc13 constant led
-
-
-\ TODO
-\ \ t1a 0 
-\ 00000401 00000024 00000000 00000000  ok.
-\ t1b -1 
-\ 00000401 00000024 00000000 00000000  ok.
-\ t2a 0 01
-\ 00000001 00000024 00000000 00000000  ok.
-\ t2b -1 81
-\ 00000001 00000024 00000000 00000000  ok.
-\ t3a -1365210930 0101
-\ 00000401 00001024 00000000 00000000 Stack underflow
-
-: led-init             omode-pp led io-mode! ;
-: led-on               led ioc! ;
-: led-off              led ios! ;
-: on-cycle   ( n -- )  led-on ms led-off ;
-: off-cycle  ( n -- )  20 swap - ms ;
-: cycle      ( n -- )  dup on-cycle off-cycle ;
-: dim        ( n -- )  led-init begin dup cycle key? until drop ;
-
 \ Hardware I2C driver for STM32F103.
 
 \ Define pins
