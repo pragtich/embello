@@ -260,7 +260,7 @@ $40005800 constant I2C2
   I2C1-DR           DMA1-CPAR7  !
   i2c.cnt @         DMA1-CNDTR7 !            \ Count
   case \ #rx 
-    0 of \ #rx=0
+    0 of                                     \ #rx=0
       if                                     \ #tx=0
 	i2c-start
 	0 i2c-send-addr
@@ -272,7 +272,7 @@ $40005800 constant I2C2
 	\ DMA will handle tx from here, then stop
       then
     endof
-    1 of \ #rx=1
+    1 of                                     \ #rx=1
       if                                     \ #tx=0
 	i2c-start
 	i2c-rx-1
@@ -284,7 +284,7 @@ $40005800 constant I2C2
 	\ DMA will handle tx from here, then transfer to rx
       then
     endof
-      \ #rx>1
+                                             \ #rx>1
       swap if                                \ #tx=0
 	12 bit I2C1-CR2  hbis!               \ LAST
 	['] i2c-irq-rx-stop 7 i2c-dma-enable
