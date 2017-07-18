@@ -262,40 +262,40 @@ $40005800 constant I2C2
   case \ #rx 
     0 of                                     \ #rx=0
       if                                     \ #tx=0
-	i2c-start
-	0 i2c-send-addr
-	i2c-stop
+        i2c-start
+        0 i2c-send-addr
+        i2c-stop
       else                                   \ #tx>0
-	['] i2c-irq-tx-stop 6 i2c-dma-enable
-	i2c-start
-	0 i2c-send-addr
-	\ DMA will handle tx from here, then stop
+        ['] i2c-irq-tx-stop 6 i2c-dma-enable
+        i2c-start
+        0 i2c-send-addr
+        \ DMA will handle tx from here, then stop
       then
     endof
     1 of                                     \ #rx=1
       if                                     \ #tx=0
-	i2c-start
-	i2c-rx-1
-	i2c-stop
+        i2c-start
+        i2c-rx-1
+        i2c-stop
       else                                   \ #tx>0
-	['] i2c-irq-rx1 6 i2c-dma-enable
-	i2c-start
-	0 i2c-send-addr
-	\ DMA will handle tx from here, then transfer to rx
+        ['] i2c-irq-rx1 6 i2c-dma-enable
+        i2c-start
+        0 i2c-send-addr
+        \ DMA will handle tx from here, then transfer to rx
       then
     endof
                                              \ #rx>1
       swap if                                \ #tx=0
-	12 bit I2C1-CR2  hbis!               \ LAST
-	['] i2c-irq-rx-stop 7 i2c-dma-enable
-	i2c-start
-	1 i2c-send-addr
-	\ DMA will handle rx from here on
+        12 bit I2C1-CR2  hbis!               \ LAST
+        ['] i2c-irq-rx-stop 7 i2c-dma-enable
+        i2c-start
+        1 i2c-send-addr
+        \ DMA will handle rx from here on
       else \ #tx>0
-	['] i2c-irq-tx-rx 6 i2c-dma-enable
-	i2c-start
-	0 i2c-send-addr
-	\ DMA will handle tx from here, then transfer to rx
+        ['] i2c-irq-tx-rx 6 i2c-dma-enable
+        i2c-start
+        0 i2c-send-addr
+        \ DMA will handle tx from here, then transfer to rx
       then
     swap                                     ( #rx nak )
   endcase
