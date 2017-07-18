@@ -150,17 +150,40 @@ $40005800 constant I2C2
   i2c-ACK-1                                  \ reset ack in case we had an rx-1 before
 ;
 
-: i2c-irq-tx-stop
-  0 bit DMA1-CCR6 bic!
+
+: i2c-dma-enable ( handler channel -- )
+  11 bit I2C1-CR2  hbis!                     \ DMAEN
+  dup 20 * DMA1 20 - +                           \ DMA1-CCRch
+  0 bit swap
+  bis!
+
+  case
+    6 of
+      irq-dma1_6 !
+    endof
+    7 of
+      irq-dma1_7 !
+    endof
+  endcase
+;
+
+
+: i2c-dma-disable ( channel -- )
   11 bit I2C1-CR2 hbic!
+  0 bit
+  swap 20 * DMA1 20 - +                           \ DMA1-CCRch
+  bic!
+;
+
+: i2c-irq-tx-stop
+  6 i2c-dma-disable
   21 bit DMA1-IFCR bis!                      \ CTCIF6
   i2c-EV8_2 i2c-stop
   begin 9 bit I2C1-CR1 hbit@ 0= until        \ Wait for STOP to clear
 ;
 
 : i2c-irq-rx-stop
-  11 bit I2C1-CR2  hbic!                     \ DMAEN
-  0  bit DMA1-CCR7  bic!                     \ DMAEN
+  7 i2c-dma-disable
   25 bit DMA1-IFCR  bis!                     \ CTCIF7
   i2c-stop
   begin 9 bit I2C1-CR1 hbit@ 0= until        \ Wait for STOP to clear
@@ -177,20 +200,17 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-tx-rx 
-  0 bit DMA1-CCR6 bic!
-  11 bit I2C1-CR2 hbic!
+  6 i2c-dma-disable
   21 bit DMA1-IFCR bis!                      \ CTCIF6
 
   \ Wait for TxE: don't clobber last byte
   i2c-SR1-TxE i2c-SR1-wait
   
   \ Configure DMA 7
-  ['] i2c-irq-rx-stop irq-dma1_7 !
+  ['] i2c-irq-rx-stop 7 i2c-dma-enable
 
   \ Start rx (will wait for I2C1 to be ready)
-  11 bit I2C1-CR2  hbis!                     \ DMAEN
   12 bit I2C1-CR2  hbis!                     \ LAST
-  0  bit DMA1-CCR7 bis!                      \ DMAEN
   \ Send restart  
   i2c-start                                  \ Restart
   1 i2c-send-addr drop
@@ -204,8 +224,7 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-rx1
-  0 bit DMA1-CCR6 bic!
-  11 bit I2C1-CR2 hbic!
+  6 i2c-dma-disable
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
 
   \ Wait for TxE: don't clobber last byte
@@ -247,10 +266,7 @@ $40005800 constant I2C2
 	0 i2c-send-addr
 	i2c-stop
       else                                   \ #tx>0
-	11 bit I2C1-CR2  hbis!               \ DMAEN
-	0  bit DMA1-CCR6 bis!                \ DMAEN
-	['] i2c-irq-tx-stop irq-dma1_6 !
-
+	['] i2c-irq-tx-stop 6 i2c-dma-enable
 	i2c-start
 	0 i2c-send-addr
 	\ DMA will handle tx from here, then stop
@@ -262,10 +278,7 @@ $40005800 constant I2C2
 	i2c-rx-1
 	i2c-stop
       else                                   \ #tx>0
-	11 bit I2C1-CR2  hbis!               \ DMAEN
-	0  bit DMA1-CCR6 bis!                \ DMAEN
-	['] i2c-irq-rx1 irq-dma1_6 !
-
+	['] i2c-irq-rx1 6 i2c-dma-enable
 	i2c-start
 	0 i2c-send-addr
 	\ DMA will handle tx from here, then transfer to rx
@@ -273,19 +286,13 @@ $40005800 constant I2C2
     endof
       \ #rx>1
       swap if                                \ #tx=0
-	11 bit I2C1-CR2  hbis!               \ DMAEN
 	12 bit I2C1-CR2  hbis!               \ LAST
-	0  bit DMA1-CCR7 bis!                \ DMAEN
-	['] i2c-irq-rx-stop irq-dma1_7 !
-	
+	['] i2c-irq-rx-stop 7 i2c-dma-enable
 	i2c-start
 	1 i2c-send-addr
 	\ DMA will handle rx from here on
       else \ #tx>0
-	11 bit I2C1-CR2  hbis!               \ DMAEN
-	0  bit DMA1-CCR6 bis!                \ DMAEN
-	['] i2c-irq-tx-rx irq-dma1_6 !
-	
+	['] i2c-irq-tx-rx 6 i2c-dma-enable
 	i2c-start
 	0 i2c-send-addr
 	\ DMA will handle tx from here, then transfer to rx
