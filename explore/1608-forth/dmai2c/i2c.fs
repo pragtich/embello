@@ -52,9 +52,6 @@ $40005800 constant I2C2
 \ $40021000 constant RCC
      RCC $10 + constant RCC-APB1RSTR
      RCC $14 + constant RCC-AHBENR
-\ $40020000 constant DMA1
-   \ DMA1 $00 + constant DMA1-ISR
-   \ DMA1 $04 + constant DMA1-IFCR
 
     DMA1 20 6 1- * + 
     dup $08 + constant DMA1-CCR6
@@ -71,33 +68,7 @@ $40005800 constant I2C2
     drop
          
     $E000E000 constant NVIC  
-    NVIC $4 + constant NVIC_ICTR
-    NVIC $F00 + constant NVIC_STIR
-    NVIC $100 + constant NVIC_ISER0
-    NVIC $104 + constant NVIC_ISER1
-    NVIC $180 + constant NVIC_ICER0
-    NVIC $184 + constant NVIC_ICER1
-    NVIC $200 + constant NVIC_ISPR0
-    NVIC $204 + constant NVIC_ISPR1
-    NVIC $280 + constant NVIC_ICPR0
-    NVIC $284 + constant NVIC_ICPR1
-    NVIC $300 + constant NVIC_IABR0
-    NVIC $304 + constant NVIC_IABR1
-    NVIC $400 + constant NVIC_IPR0
-    NVIC $404 + constant NVIC_IPR1
-    NVIC $408 + constant NVIC_IPR2
-    NVIC $40C + constant NVIC_IPR3
-    NVIC $410 + constant NVIC_IPR4
-    NVIC $414 + constant NVIC_IPR5
-    NVIC $418 + constant NVIC_IPR6
-    NVIC $41C + constant NVIC_IPR7
-    NVIC $420 + constant NVIC_IPR8
-    NVIC $424 + constant NVIC_IPR9
-    NVIC $428 + constant NVIC_IPR10
-    NVIC $42C + constant NVIC_IPR11
-    NVIC $430 + constant NVIC_IPR12
-    NVIC $434 + constant NVIC_IPR13
-    NVIC $438 + constant NVIC_IPR14    
+    NVIC $100 + constant NVIC_ISER0 
 
 \ Register constants
 3  bit constant APB2-GPIOB-EN
@@ -115,11 +86,12 @@ $40005800 constant I2C2
 : i2c-ACK-1 ( -- ) 10 bit I2C1-CR1 hbis! ;
 : i2c-ACK-0 ( -- ) 10 bit I2C1-CR1 hbic! ;
 
-\ status checks
+\ Status checks
+\ TODO Do we want to wait forever, or timeout? We are doing both at the moment
 : i2c-SR1-flag? I2C1-SR1 hbit@ ;
 : i2c-SR2-flag? I2C1-SR2 hbit@ ;
-: i2c-SR1-wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? or until 2drop ; \ Waits until SR1 meets bit mask or timeout
-: i2c-busy?   ( -- b) i2c-SR2-BUSY i2c-SR2-flag? 0<> ;
+: i2c-SR1-wait ( u --   ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? or until 2drop ; 
+: i2c-busy?    (   -- b ) i2c-SR2-BUSY i2c-SR2-flag? 0<> ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init ( -- )
