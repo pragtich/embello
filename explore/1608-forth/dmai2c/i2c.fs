@@ -1,5 +1,8 @@
 \ Hardware I2C driver for STM32F103.
 
+\ Timeout
+[ifndef] i2c.timeout $ffff constant i2c.timeout [then]
+
 \ Define pins
 [ifndef] SCL  PB6 constant SCL  [then]
 [ifndef] SDA  PB7 constant SDA  [then]
@@ -30,6 +33,11 @@ $40005800 constant I2C2
      RCC $10 + constant RCC-APB1RSTR
      RCC $14 + constant RCC-AHBENR
 
+
+    [ifndef] DMA1 $40020000 constant DMA1 [then]
+
+    DMA1 4  + constant DMA1-IFCR
+    
     DMA1 20 6 1- * + 
     dup $08 + constant DMA1-CCR6
     dup $0c + constant DMA1-CNDTR6
@@ -54,9 +62,12 @@ $40005800 constant I2C2
 21 bit constant APB1-RST-I2C1
 
 0  bit constant i2c-SR1-SB
+1  bit constant i2c-SR1-ADDR
 2  bit constant i2c-SR1-BTF
+6  bit constant i2c-SR1-RxNE
 7  bit constant i2c-SR1-TxE
 10 bit constant i2c-SR1-AF
+0  bit constant i2c-SR2-MSL 
 1  bit constant i2c-SR2-BUSY
 
 \ Bit setting
@@ -67,7 +78,9 @@ $40005800 constant I2C2
 \ TODO Do we want to wait forever, or timeout? We are doing both at the moment
 : i2c-SR1-flag? I2C1-SR1 hbit@ ;
 : i2c-SR2-flag? I2C1-SR2 hbit@ ;
-: i2c-SR1-wait ( u --   ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? or until 2drop ; 
+: i2c-SR1-wait ( u --   ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? or until 2drop ;
+: i2c-SR2-!wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR2-flag? 0= or until 2drop ; 
+
 : i2c-busy?    (   -- b ) i2c-SR2-BUSY i2c-SR2-flag? 0<> ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
