@@ -8,7 +8,7 @@
 [ifndef] SDA  PB7 constant SDA  [then]
 
 \ Buffers
-[ifndef] i2c-bufsize 64 constant i2c-bufsize [then]
+[ifndef] i2c-bufsize 128 constant i2c-bufsize [then]
 
 i2c-bufsize 4 + buffer: i2c.txbuf
 i2c-bufsize 4 + buffer: i2c.rxbuf
