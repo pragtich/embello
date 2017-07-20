@@ -166,7 +166,7 @@ $40005800 constant I2C2
 
 : i2c-dma-enable ( handler channel -- )
   11 bit I2C1-CR2  hbis!                     \ DMAEN
-  dup 20 * DMA1 20 - +                           \ DMA1-CCRch
+  dup 20 * DMA1 20 - 8 + +                    \ DMA1-CCRch
   0 bit swap
   bis!
 
@@ -184,7 +184,7 @@ $40005800 constant I2C2
 : i2c-dma-disable ( channel -- )
   11 bit I2C1-CR2 hbic!
   0 bit
-  swap 20 * DMA1 20 - +                           \ DMA1-CCRch
+  swap 20 * DMA1 20 - 8 + +                           \ DMA1-CCRch
   bic!
 ;
 
