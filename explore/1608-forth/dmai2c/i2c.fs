@@ -74,8 +74,8 @@ $40005800 constant I2C2
 \ Status checks
 : i2c-SR1-flag? I2C1-SR1 hbit@ ;
 : i2c-SR2-flag? I2C1-SR2 hbit@ ;
-: i2c-SR1-wait  ( u -- )   begin pause dup i2c-SR1-flag?    until drop ;
-: i2c-SR2-!wait ( u -- )   begin pause dup i2c-SR2-flag? 0= until drop ; 
+: i2c-SR1-wait  ( u -- )   begin dup i2c-SR1-flag?    until drop ;
+: i2c-SR2-!wait ( u -- )   begin dup i2c-SR2-flag? 0= until drop ; 
 
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init ( -- )
@@ -109,7 +109,7 @@ $40005800 constant I2C2
 
   0  bit 10 bit or I2C1-CR1 hbis!    \ ACK enable, Enable bit
 
-  i2c-SR2-BUSY i2c-SR2-!wait
+  i2c-SR2-BUSY begin pause dup i2c-SR2-flag? 0= until drop ; 
 
   0  bit RCC-AHBENR bis!   \ Enable DMA peripheral clock
   0  bit DMA1-CCR6  bic!   \ Disable it for now (ch 6 = I2C1 TX)
@@ -146,7 +146,7 @@ $40005800 constant I2C2
   \ Start a new transaction and send address in write mode
   \ Does not wait for ADDR: i2x-xfer should do this
 
-  i2c-SR2-BUSY i2c-SR2-!wait
+  i2c-SR2-BUSY begin pause dup i2c-SR2-flag? 0= until drop ; 
 
   i2c.txbuf i2c-bufsize init-ring
   i2c.rxbuf i2c-bufsize init-ring
