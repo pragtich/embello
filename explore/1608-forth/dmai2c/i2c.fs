@@ -1,8 +1,5 @@
 \ Hardware I2C driver for STM32F103.
 
-\ Timeout
-[ifndef] i2c.timeout $ffff constant i2c.timeout [then]
-
 \ Define pins
 [ifndef] SCL  PB6 constant SCL  [then]
 [ifndef] SDA  PB7 constant SDA  [then]
@@ -75,13 +72,11 @@ $40005800 constant I2C2
 : i2c-ACK-0 ( -- ) 10 bit I2C1-CR1 hbic! ;
 
 \ Status checks
-\ TODO Do we want to wait forever, or timeout? We are doing both at the moment
 : i2c-SR1-flag? I2C1-SR1 hbit@ ;
 : i2c-SR2-flag? I2C1-SR2 hbit@ ;
-: i2c-SR1-wait ( u --   ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR1-flag? or until 2drop ;
-: i2c-SR2-!wait ( u -- ) i2c.timeout @ begin 1- 2dup 0= swap i2c-SR2-flag? 0= or until 2drop ; 
-
-: i2c-busy?    (   -- b ) i2c-SR2-BUSY i2c-SR2-flag? 0<> ;
+: i2c-SR1-wait  ( u -- )   begin pause dup i2c-SR1-flag?    until drop ;
+: i2c-SR2-!wait ( u -- )   begin pause dup i2c-SR2-flag? 0= until drop ; 
+: i2c-busy?     (   -- b ) i2c-SR2-BUSY i2c-SR2-flag? 0<> ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init ( -- )
@@ -115,7 +110,8 @@ $40005800 constant I2C2
 
   0  bit 10 bit or I2C1-CR1 hbis!    \ ACK enable, Enable bit
 
-  begin i2c-busy? 0= until \ Wait until peripheral ready
+\   begin i2c-busy? 0= until \ Wait until peripheral ready
+  i2c-SR2-BUSY i2c-SR2-!wait
 
   0  bit RCC-AHBENR bis!   \ Enable DMA peripheral clock
   0  bit DMA1-CCR6  bic!   \ Disable it for now (ch 6 = I2C1 TX)
@@ -156,8 +152,9 @@ $40005800 constant I2C2
   \ Start a new transaction and send address in write mode
   \ Does not wait for ADDR: i2x-xfer should do this
 
-  begin pause i2c-busy? 0= until \ Wait until peripheral ready
-  
+\   begin pause i2c-busy? 0= until \ Wait until peripheral ready
+  i2c-SR2-BUSY i2c-SR2-!wait
+
   i2c.txbuf i2c-bufsize init-ring
   i2c.rxbuf i2c-bufsize init-ring
   shl i2c.addr !
