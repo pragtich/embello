@@ -126,7 +126,6 @@ $40005800 constant I2C2
   i2c-start! i2c-SR1-SB i2c-SR1-wait ;
 : i2c-stop   ( -- ) \ stop and wait
   i2c-stop! i2c-SR2-MSL i2c-SR2-!wait ; 
-
 : i2c-DR!    ( u -- )  I2C1-DR c! ;            \ Writes data register
 
 \ STM Events
@@ -143,9 +142,6 @@ $40005800 constant I2C2
   i2c-stop! ;
 : i2c-EV7   i2c-SR1-RxNE i2c-SR1-wait ;
 
-
-\ API (should be compatible with i2c-bb
-
 : i2c-addr ( u --)
   \ Start a new transaction and send address in write mode
   \ Does not wait for ADDR: i2x-xfer should do this
@@ -158,7 +154,6 @@ $40005800 constant I2C2
 
   i2c-ACK-1                                  \ reset ack in case we had an rx-1 before
 ;
-
 
 : i2c-dma-enable ( handler channel -- )
   11 bit I2C1-CR2  hbis!                     \ DMAEN
@@ -175,7 +170,6 @@ $40005800 constant I2C2
     endof
   endcase
 ;
-
 
 : i2c-dma-disable ( channel -- )
   11 bit I2C1-CR2 hbic!
@@ -245,7 +239,6 @@ $40005800 constant I2C2
   i2c-EV7
   I2C1-DR @ i2c.rxbuf >ring
 ;
-
 
 : i2c-xfer ( n -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
@@ -329,13 +322,9 @@ $40005800 constant I2C2
 : i2c>h_inv ( -- u ) \ Receives 16 bit word from i2c, msb first.
     i2c>  8 lshift i2c>  or ;
 
-\ Own additions to API
-
 : i2c-probe ( addr -- nak )
   i2c-addr 0 i2c-xfer
   ;
-
-\ High level transactions
 
 : i2c. ( -- )  \ scan and report all I2C devices on the bus
   128 0 do
@@ -346,6 +335,3 @@ $40005800 constant I2C2
       then
     loop
   16 +loop ;
-
-
-
