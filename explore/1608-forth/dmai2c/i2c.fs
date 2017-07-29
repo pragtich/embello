@@ -152,10 +152,12 @@ $40005800 constant I2C2
 
 \ API (should be compatible with i2c-bb
 
+: i2c-addr ( u --)
+  \ Start a new transaction and send address in write mode
+  \ Does not wait for ADDR: i2x-xfer should do this
 
-: i2c-addr ( addr -- )
-  \ Initiate i2c transaction.
-  \ Does not actually start communication, because need to know #tx
+  begin pause i2c-busy? 0= until \ Wait until peripheral ready
+  
   i2c.txbuf i2c-bufsize init-ring
   i2c.rxbuf i2c-bufsize init-ring
   shl i2c.addr !
