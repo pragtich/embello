@@ -1,7 +1,7 @@
 \ Hardware I2C driver for STM32F103.
 
 \ TODO
-\ Rebase
+\ Rebase DONE
 \ Document
 \ In interrupt, detect errors
 \ Variable bit rates
@@ -41,6 +41,7 @@ $40005800 constant I2C2
 
     [ifndef] DMA1 $40020000 constant DMA1 [then]
 
+    DMA1      constant DMA1-ISR
     DMA1 4  + constant DMA1-IFCR
     
     DMA1 20 6 1- * + 
@@ -186,20 +187,31 @@ $40005800 constant I2C2
   bic!
 ;
 
+: i2c-irq-err? ( channel -- )                 \ Was the irq triggered by error?
+  1- 4 * 3 + bit DMA1-ISR bit@ inline ;       \ TEIFx 
+
+
+: i2c-irq-done? ( channel -- )                \ Was the irq for complete xfer?
+  1- 4 * 1 + bit DMA1-ISR bit@ inline ;       \ TCIFx
+
 : i2c-irq-tx-stop
-  6 i2c-dma-disable
-  21 bit DMA1-IFCR bis!                      \ CTCIF6
-  i2c-EV8_2 i2c-stop
-  begin 9 bit I2C1-CR1 hbit@ 0= until        \ Wait for STOP to clear
+  6 i2c-irq-done? if
+    6 i2c-dma-disable
+    21 bit DMA1-IFCR bis!                     \ CTCIF6
+    i2c-EV8_2 i2c-stop
+    begin 9 bit I2C1-CR1 hbit@ 0= until       \ Wait for STOP to clear
+  else i2c-stop then
 ;
 
 : i2c-irq-rx-stop
-  7 i2c-dma-disable
-  25 bit DMA1-IFCR  bis!                     \ CTCIF7
-  i2c-stop
-  begin 9 bit I2C1-CR1 hbit@ 0= until        \ Wait for STOP to clear
-  \ Let RX buffer know of new data
-  i2c.cnt @ i2c.rxbuf 1+ c!
+  7 i2c-irq-done? if
+    7 i2c-dma-disable
+    25 bit DMA1-IFCR  bis!                    \ CTCIF7
+    i2c-stop
+    begin 9 bit I2C1-CR1 hbit@ 0= until       \ Wait for STOP to clear
+    \ Let RX buffer know of new data
+    i2c.cnt @ i2c.rxbuf 1+ c!
+  else i2c-stop then
 ;
 
 : i2c-send-addr             ( rx? -- nak )
@@ -211,6 +223,7 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-tx-rx 
+  6 i2c-irq-done? if
   6 i2c-dma-disable
   21 bit DMA1-IFCR bis!                      \ CTCIF6
 
@@ -225,6 +238,7 @@ $40005800 constant I2C2
   \ Send restart  
   i2c-start                                  \ Restart
   1 i2c-send-addr drop
+  else i2c-stop then
 ;
 
 : i2c-rx-1
@@ -235,6 +249,7 @@ $40005800 constant I2C2
 ;
 
 : i2c-irq-rx1
+  6 i2c-irq-done? if
   6 i2c-dma-disable
   21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
 
@@ -246,6 +261,7 @@ $40005800 constant I2C2
   i2c-EV6_3 drop            \ don't want nak value
   i2c-EV7
   I2C1-DR @ i2c.rxbuf >ring
+  else i2c-stop then
 ;
 
 : i2c-xfer ( n -- nak ) \ prepares for reading an nbyte reply.
