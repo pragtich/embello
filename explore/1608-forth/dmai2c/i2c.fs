@@ -1,5 +1,13 @@
 \ Hardware I2C driver for STM32F103.
 
+\ TODO
+\ Rebase
+\ Document
+\ In interrupt, detect errors
+\ Variable bit rates
+\ Publish
+
+
 \ Define pins
 [ifndef] SCL  PB6 constant SCL  [then]
 [ifndef] SDA  PB7 constant SDA  [then]
