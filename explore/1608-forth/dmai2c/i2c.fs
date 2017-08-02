@@ -23,6 +23,8 @@ i2c.rxbuf i2c-bufsize init-ring
 \ Variables
 0 variable i2c.addr
 0 variable i2c.cnt
+0 variable i2c.collect
+['] nop variable i2c.irq-handler
 
 \ Register definitions
 $40005400 constant I2C1
@@ -86,45 +88,6 @@ $40005800 constant I2C2
 : i2c-SR1-wait  ( u -- )   begin dup i2c-SR1-flag?    until drop ;
 : i2c-SR2-!wait ( u -- )   begin dup i2c-SR2-flag? 0= until drop ; 
 
-\ Init and reset I2C. Probably overkill. TODO simplify
-: i2c-init ( -- )
-  \ Reset I2C1
-  APB1-RST-I2C1 RCC-APB1RSTR bis!
-  APB1-RST-I2C1 RCC-APB1RSTR bic!
-
-  \ init clocks
-  APB2-GPIOB-EN APB2-AFIO-EN or RCC-APB2ENR bis!
-  APB1-I2C1-EN                  RCC-APB1ENR bis!
-
-  \ init GPIO
-  IMODE-FLOAT SCL io-mode!  \ edited: manual says use floating input
-  IMODE-FLOAT SDA io-mode!
-  OMODE-AF-OD OMODE-FAST + SCL io-mode!  \ I²C requires external pullup
-  OMODE-AF-OD OMODE-FAST + SDA io-mode!  \     resistors on SCL and SDA
-
-  \ Reset I2C peripheral
-   15 bit I2C1-CR1 hbis!
-   15 bit I2C1-CR1 hbic!
-
-  \ Enable I2C peripheral
-  21 bit RCC-APB1ENR bis!  \ set I2C1EN
-  $3F I2C1-CR2 hbic!       \ CLEAR FREQ field
-  36 I2C1-CR2 hbis!        \ APB1 is 36 MHz TODO: all clock rates
-
-  \ Configure clock control registers. For now, 100 kHz and 1000us rise time
-  \ TODO: configure variable bit rates, Fast mode
-  $B4 I2C1-CCR h!          \ Select 100 kHz normal mode
-  37  I2C1-TRISE h!        \ APB1(MHz)+1 for 1000ns SCL
-
-  0  bit 10 bit or I2C1-CR1 hbis!    \ ACK enable, Enable bit
-
-  i2c-SR2-BUSY begin pause dup i2c-SR2-flag? 0= until drop 
-
-  0  bit RCC-AHBENR bis!   \ Enable DMA peripheral clock
-  0  bit DMA1-CCR6  bic!   \ Disable it for now (ch 6 = I2C1 TX)
-  0  bit DMA1-CCR7  bic!   \ Disable it for now (ch 7 = I2C1 RX)
- ;
-
 \ debugging
 : i2c? cr I2C1-CR1 h@ hex. I2C1-CR2 h@ hex. I2C1-SR1 h@ hex. I2C1-SR2 h@ hex. ;
 
@@ -169,15 +132,7 @@ $40005800 constant I2C2
   dup 20 * DMA1 20 - 8 + +                    \ DMA1-CCRch
   0 bit swap
   bis!
-
-  case
-    6 of
-      irq-dma1_6 !
-    endof
-    7 of
-      irq-dma1_7 !
-    endof
-  endcase
+  drop i2c.irq-handler !
 ;
 
 : i2c-dma-disable ( channel -- )
@@ -264,6 +219,57 @@ $40005800 constant I2C2
   else i2c-stop then
 ;
 
+\ Dispatches all the DMA interrupts
+: i2c-irq-dispatch ( -- )
+  ipsr $ff and dup 32 = swap 33 = or if
+    i2c.irq-handler @ execute
+  then ;
+
+\ Init and reset I2C. Probably overkill. TODO simplify
+: i2c-init ( -- )
+  \ Reset I2C1
+  APB1-RST-I2C1 RCC-APB1RSTR bis!
+  APB1-RST-I2C1 RCC-APB1RSTR bic!
+
+  \ init clocks
+  APB2-GPIOB-EN APB2-AFIO-EN or RCC-APB2ENR bis!
+  APB1-I2C1-EN                  RCC-APB1ENR bis!
+
+  \ init GPIO
+  IMODE-FLOAT SCL io-mode!  \ edited: manual says use floating input
+  IMODE-FLOAT SDA io-mode!
+  OMODE-AF-OD OMODE-FAST + SCL io-mode!  \ I²C requires external pullup
+  OMODE-AF-OD OMODE-FAST + SDA io-mode!  \     resistors on SCL and SDA
+
+  \ Reset I2C peripheral
+   15 bit I2C1-CR1 hbis!
+   15 bit I2C1-CR1 hbic!
+
+  \ Enable I2C peripheral
+  21 bit RCC-APB1ENR bis!  \ set I2C1EN
+  $3F I2C1-CR2 hbic!       \ CLEAR FREQ field
+  36 I2C1-CR2 hbis!        \ APB1 is 36 MHz TODO: all clock rates
+
+  \ Configure clock control registers. For now, 100 kHz and 1000us rise time
+  \ TODO: configure variable bit rates, Fast mode
+  $B4 I2C1-CCR h!          \ Select 100 kHz normal mode
+  37  I2C1-TRISE h!        \ APB1(MHz)+1 for 1000ns SCL
+
+  0  bit 10 bit or I2C1-CR1 hbis!    \ ACK enable, Enable bit
+
+  i2c-SR2-BUSY begin pause dup i2c-SR2-flag? 0= until drop 
+
+  0  bit RCC-AHBENR bis!   \ Enable DMA peripheral clock
+  0  bit DMA1-CCR6  bic!   \ Disable it for now (ch 6 = I2C1 TX)
+  0  bit DMA1-CCR7  bic!   \ Disable it for now (ch 7 = I2C1 RX)
+
+  i2c.collect @ 0= if
+    irq-collection @ i2c.collect !
+    ['] i2c-irq-dispatch irq-collection !
+  then
+ ;
+
+\ The meat of the I2C driver is in this function
 : i2c-xfer ( n -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
   \ 
