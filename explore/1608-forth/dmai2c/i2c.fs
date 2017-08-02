@@ -223,7 +223,9 @@ $40005800 constant I2C2
 : i2c-irq-dispatch ( -- )
   ipsr $ff and dup 32 = swap 33 = or if
     i2c.irq-handler @ execute
-  then ;
+  then
+\  i2c.collect @ ?dup if execute then
+;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init ( -- )
@@ -264,7 +266,11 @@ $40005800 constant I2C2
   0  bit DMA1-CCR7  bic!   \ Disable it for now (ch 7 = I2C1 RX)
 
   i2c.collect @ 0= if
-    irq-collection @ i2c.collect !
+    irq-collection @ dup ['] unhandled = if
+      drop
+      ['] nop
+    then
+    i2c.collect ! 
     ['] i2c-irq-dispatch irq-collection !
   then
  ;
