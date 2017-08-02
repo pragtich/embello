@@ -219,12 +219,12 @@ $40005800 constant I2C2
   else i2c-stop then
 ;
 
-\ Dispatches all the DMA interrupts
+\ Dispatches all the DMA interrupts TODO call of collect not yet working
 : i2c-irq-dispatch ( -- )
   ipsr $ff and dup 32 = swap 33 = or if
     i2c.irq-handler @ execute
   then
-\  i2c.collect @ ?dup if execute then
+  i2c.collect @ ?dup if execute then
 ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
