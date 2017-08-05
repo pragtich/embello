@@ -124,21 +124,19 @@ $40005800 constant I2C2
   i2c.rxbuf i2c-bufsize init-ring
   shl i2c.addr !
 
-  i2c-ACK-1                                  \ reset ack in case we had an rx-1 before
+  i2c-ACK-1                                   \ reset ack in case we had an rx-1 before
 ;
 
-: i2c-dma-enable ( handler channel -- )
-  11 bit I2C1-CR2  hbis!                     \ DMAEN
-  dup 20 * DMA1 20 - 8 + +                    \ DMA1-CCRch
-  0 bit swap
-  bis!
-  drop i2c.irq-handler !
+: i2c-dma-enable ( channel -- )
+  11 bit I2C1-CR2  hbis!                      \ DMAEN
+  20 * DMA1 20 - 8 + +                        \ DMA1-CCRch 6 120+dma1-20+8
+  0 bit swap bis!
 ;
 
 : i2c-dma-disable ( channel -- )
   11 bit I2C1-CR2 hbic!
   0 bit
-  swap 20 * DMA1 20 - 8 + +                           \ DMA1-CCRch
+  swap 20 * DMA1 20 - 8 + +                   \ DMA1-CCRch
   bic!
 ;
 
@@ -149,51 +147,12 @@ $40005800 constant I2C2
 : i2c-irq-done? ( channel -- )                \ Was the irq for complete xfer?
   1- 4 * 1 + bit DMA1-ISR bit@ inline ;       \ TCIFx
 
-: i2c-irq-tx-stop
-  6 i2c-irq-done? if
-    6 i2c-dma-disable
-    21 bit DMA1-IFCR bis!                     \ CTCIF6
-    i2c-EV8_2 i2c-stop
-    begin 9 bit I2C1-CR1 hbit@ 0= until       \ Wait for STOP to clear
-  else i2c-stop then
-;
-
-: i2c-irq-rx-stop
-  7 i2c-irq-done? if
-    7 i2c-dma-disable
-    25 bit DMA1-IFCR  bis!                    \ CTCIF7
-    i2c-stop
-    begin 9 bit I2C1-CR1 hbit@ 0= until       \ Wait for STOP to clear
-    \ Let RX buffer know of new data
-    i2c.cnt @ i2c.rxbuf 1+ c!
-  else i2c-stop then
-;
-
 : i2c-send-addr             ( rx? -- nak )
   i2c.addr @  or i2c-DR!                     \ calculate address
   i2c-EV6a                                   \ Wait for addr to happen
   i2c-SR1-AF i2c-SR1-flag?                   \ Put NAK on stack
   i2c-SR1-AF i2c1-SR1 hbic!                  \ Clear the NAK fl
   i2c-EV6b                                   \ end addr
-;
-
-: i2c-irq-tx-rx 
-  6 i2c-irq-done? if
-  6 i2c-dma-disable
-  21 bit DMA1-IFCR bis!                      \ CTCIF6
-
-  \ Wait for TxE: don't clobber last byte
-  i2c-SR1-TxE i2c-SR1-wait
-  
-  \ Configure DMA 7
-  ['] i2c-irq-rx-stop 7 i2c-dma-enable
-
-  \ Start rx (will wait for I2C1 to be ready)
-  12 bit I2C1-CR2  hbis!                     \ LAST
-  \ Send restart  
-  i2c-start                                  \ Restart
-  1 i2c-send-addr drop
-  else i2c-stop then
 ;
 
 : i2c-rx-1
@@ -203,28 +162,54 @@ $40005800 constant I2C2
   I2C1-DR @ i2c.rxbuf >ring
 ;
 
-: i2c-irq-rx1
-  6 i2c-irq-done? if
-  6 i2c-dma-disable
-  21 bit DMA1-IFCR bis!     \ CTCIF6, clear transfer complete flag
-
-  \ Wait for TxE: don't clobber last byte
-  i2c-SR1-TxE i2c-SR1-wait
-  i2c-start                 \ Restart
-  
-  i2c.addr @ 1 or i2c-DR!   \ Read address
-  i2c-EV6_3 drop            \ don't want nak value
-  i2c-EV7
-  I2C1-DR @ i2c.rxbuf >ring
-  else i2c-stop then
-;
-
 \ Dispatches all the DMA interrupts TODO call of collect not yet working
 : i2c-irq-dispatch ( -- )
-  ipsr $ff and dup 32 = swap 33 = or if
-    i2c.irq-handler @ execute
+  ipsr dup $fe and  32 = if ( ipsr)
+    \ i2c.irq-handler @ execute
+    case
+      32 of \ TX event: stop or RX 
+	6 i2c-irq-done? if
+	  6 i2c-dma-disable
+	  21 bit DMA1-IFCR  bis!                    \ CTCIF6
+	  i2c.cnt @ case
+	    0 of
+	      i2c-EV8_2 i2c-stop
+	      begin 9 bit I2C1-CR1 hbit@ 0= until   \ Wait for STOP to clear
+	    endof
+	    1 of
+	      \ Wait for TxE: don't clobber last byte
+	      i2c-SR1-TxE i2c-SR1-wait
+	      i2c-start                             \ Restart
+	      i2c-rx-1 drop                         \ discard nak
+	    endof
+	    ( #rx )
+	    \ Wait for TxE: don't clobber last byte
+	    i2c-SR1-TxE i2c-SR1-wait
+	    
+	    \ Configure DMA 7
+	    7 i2c-dma-enable
+
+	    \ Start rx (will wait for I2C1 to be ready)
+	    12 bit I2C1-CR2  hbis!                  \ LAST
+	    \ Send restart  
+	    i2c-start                               \ Restart
+	    1 i2c-send-addr drop
+	  endcase
+	  else i2c-stop then                        \ Error irq: give up
+      endof
+      33 of \ RX event: always stop
+	7 i2c-irq-done? if
+	  7 i2c-dma-disable
+	  25 bit DMA1-IFCR  bis!                    \ CTCIF7
+	  i2c-stop
+	  begin 9 bit I2C1-CR1 hbit@ 0= until       \ Wait for STOP to clear
+	  \ Let RX buffer know of new data
+	  i2c.cnt @ i2c.rxbuf 1+ c!
+	else i2c-stop then                          \ Error irq: give up
+      endof
+    endcase
   then
-  i2c.collect @ ?dup if execute then
+  i2c.collect @ execute
 ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
@@ -279,9 +264,8 @@ $40005800 constant I2C2
 : i2c-xfer ( n -- nak ) \ prepares for reading an nbyte reply.
   \ Use after i2c-addr and optional >i2c calls.
   \ 
-  dup i2c.cnt !
-  i2c.txbuf ring#        ( #rx #tx   )
-  0= swap                ( #tx>0 #rx )
+  i2c.cnt !                                  \ Store #rx
+  i2c.txbuf ring# 0=      ( #tx=0   )
 
   \ Configure I2C1 peripheral
   12 bit I2C1-CR2  hbic!                     \ LAST
@@ -297,46 +281,32 @@ $40005800 constant I2C2
   i2c.rxbuf 4 +     DMA1-CMAR7  !
   I2C1-DR           DMA1-CPAR7  !
   i2c.cnt @         DMA1-CNDTR7 !            \ Count
-  case \ #rx 
-    0 of                                     \ #rx=0
-      if                                     \ #tx=0
-        i2c-start
+
+  if \ #TX=0
+    i2c.cnt @ case
+      0 of                                   \ Probe
+	i2c-start
         0 i2c-send-addr
         i2c-stop
-      else                                   \ #tx>0
-        ['] i2c-irq-tx-stop 6 i2c-dma-enable
-        i2c-start
-        0 i2c-send-addr
-        \ DMA will handle tx from here, then stop
-      then
-    endof
-    1 of                                     \ #rx=1
-      if                                     \ #tx=0
+      endof
+      1 of                                   \ Receive 1 byte
         i2c-start
         i2c-rx-1
         i2c-stop
-      else                                   \ #tx>0
-        ['] i2c-irq-rx1 6 i2c-dma-enable
-        i2c-start
-        0 i2c-send-addr
-        \ DMA will handle tx from here, then transfer to rx
-      then
-    endof
-                                             \ #rx>1
-      swap if                                \ #tx=0
-        12 bit I2C1-CR2  hbis!               \ LAST
-        ['] i2c-irq-rx-stop 7 i2c-dma-enable
-        i2c-start
-        1 i2c-send-addr
-        \ DMA will handle rx from here on
-      else \ #tx>0
-        ['] i2c-irq-tx-rx 6 i2c-dma-enable
-        i2c-start
-        0 i2c-send-addr
-        \ DMA will handle tx from here, then transfer to rx
-      then
-    swap                                     ( #rx nak )
-  endcase
+      endof
+      ( #rx)
+      12 bit I2C1-CR2  hbis!                 \ LAST
+      7 i2c-dma-enable
+      i2c-start
+      1 i2c-send-addr swap ( nak #rx)
+      \ DMA will handle rx from here on
+    endcase
+  else \ #TX > 0
+    6 i2c-dma-enable
+    i2c-start
+    0 i2c-send-addr
+    \ DMA will handle tx from here, then stop
+  then
   \ If nak, stop communication
   dup 0<> if
     i2c-stop
