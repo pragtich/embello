@@ -24,7 +24,6 @@ i2c.rxbuf i2c-bufsize init-ring
 0 variable i2c.addr
 0 variable i2c.cnt
 0 variable i2c.collect
-['] nop variable i2c.irq-handler
 
 \ Register definitions
 $40005400 constant I2C1
@@ -185,10 +184,8 @@ $40005800 constant I2C2
 	  ( #rx )
 	  \ Wait for TxE: don't clobber last byte
 	  i2c-SR1-TxE i2c-SR1-wait
-	  
 	  \ Configure DMA 7
 	  7 i2c-dma-enable
-
 	  \ Start rx (will wait for I2C1 to be ready)
 	  12 bit I2C1-CR2  hbis!                  \ LAST
 	  \ Send restart  
