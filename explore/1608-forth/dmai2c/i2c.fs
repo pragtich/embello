@@ -208,6 +208,30 @@ $40005800 constant I2C2
   i2c.collect @ execute
 ;
 
+\ APB1 speed
+: apb1-hz ( -- u )
+  RCC-CFGR @ dup
+  $F0 and 4 shr drop \ HPRE 
+  $700 and 8 shr drop \ PPRE1
+;
+
+\ Configure I2C for Standard Mode
+: i2c-standard
+  $3F I2C1-CR2 hbic!                              \ CLEAR FREQ field
+  clock-hz @ 1000 2/                              \ Try to glean APB1 speed
+  dup   I2C1-CR2 hbis!                            \ Set current clock speed (MHz)
+  $00B4 I2C1-CCR h!                               \ Select 100 kHz Fast mode
+  1+    I2C1-TRISE h!                             \ APB1(MHz)+1 for 1000ns SCL
+;
+
+\ Configure I2C for Fast Mode
+: i2c-fast
+  $3F I2C1-CR2 hbic!                              \ CLEAR FREQ field
+  clock-hz @ 1000 / I2C1-CR2 hbis!                \ Set current clock speed (MHz)
+  $801E I2C1-CCR h!                               \ Select 400kHz Fast Mode
+  37    I2C1-TRISE h!                             \ APB1(MHz)+1 for 1000ns SCL
+;
+
 \ Init and reset I2C. Probably overkill. TODO simplify
 : i2c-init ( -- )
   \ Reset I2C1
