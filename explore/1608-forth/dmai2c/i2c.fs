@@ -209,27 +209,56 @@ $40005800 constant I2C2
 ;
 
 \ APB1 speed
+\ 0	0	1
+\ 4	0	2
+\ 5	1	4
+\ 6	2	8
+\ 7	3	16
+		
+		
+\ Bit 3? xxx else 1		
+\ Xxx = 2 bit0-2 shl		
+		
+
+
 : apb1-hz ( -- u )
-  RCC-CFGR @ dup
-  $F0 and 4 shr drop \ HPRE 
-  $700 and 8 shr drop \ PPRE1
+
+  RCC-CFGR @ 
+  dup $80 and if
+    dup $70 and 4 rshift
+    dup 2 bit and if 1+ then
+    1+ bit
+  else 1
+  then   \ HPRE prescaler
+  swap ( HPRE CFGR)
+  dup 10 bit and if $300 and 8 rshift 1+ bit else 1 then   \ PPRE1 prescaler
+  * clock-hz @ swap /
 ;
 
 \ Configure I2C for Standard Mode
 : i2c-standard
+  0  bit  I2C1-CR1 hbic!                          \ Disable peripheral
+  i2c-SR2-BUSY begin pause dup i2c-SR2-flag? 0= until drop 
+  
   $3F I2C1-CR2 hbic!                              \ CLEAR FREQ field
-  clock-hz @ 1000 2/                              \ Try to glean APB1 speed
+  apb1-hz 1000000 /                               \ Try to glean APB1 speed
   dup   I2C1-CR2 hbis!                            \ Set current clock speed (MHz)
   $00B4 I2C1-CCR h!                               \ Select 100 kHz Fast mode
   1+    I2C1-TRISE h!                             \ APB1(MHz)+1 for 1000ns SCL
+  0  bit 10 bit or I2C1-CR1 hbis!                 \ Enable peripheral & ACK
 ;
 
 \ Configure I2C for Fast Mode
 : i2c-fast
+  0  bit  I2C1-CR1 hbic!                          \ Disable peripheral
+  i2c-SR2-BUSY begin pause dup i2c-SR2-flag? 0= until drop 
+  
   $3F I2C1-CR2 hbic!                              \ CLEAR FREQ field
-  clock-hz @ 1000 / I2C1-CR2 hbis!                \ Set current clock speed (MHz)
-  $801E I2C1-CCR h!                               \ Select 400kHz Fast Mode
-  37    I2C1-TRISE h!                             \ APB1(MHz)+1 for 1000ns SCL
+  apb1-hz 1000000 /                               \ Try to glean APB1 speed
+  dup     I2C1-CR2 hbis!                          \ Set current clock speed (MHz)
+  $801E   I2C1-CCR h!                             \ Select 400kHz Fast Mode
+  3 / 1+  I2C1-TRISE h!                           \ APB1(MHz)/3+1 for 333ns SCL
+  0  bit 10 bit or I2C1-CR1 hbis!                 \ Enable peripheral & ACK
 ;
 
 \ Init and reset I2C. Probably overkill. TODO simplify
