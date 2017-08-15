@@ -209,29 +209,16 @@ $40005800 constant I2C2
 ;
 
 \ APB1 speed
-\ 0	0	1
-\ 4	0	2
-\ 5	1	4
-\ 6	2	8
-\ 7	3	16
-		
-		
-\ Bit 3? xxx else 1		
-\ Xxx = 2 bit0-2 shl		
-		
-
-
 : apb1-hz ( -- u )
-
   RCC-CFGR @ 
-  dup $80 and if
+  dup $80 and if 
     dup $70 and 4 rshift
     dup 2 bit and if 1+ then
-    1+ bit
-  else 1
+    1+ bit 
+  else 1 
   then   \ HPRE prescaler
   swap ( HPRE CFGR)
-  dup 10 bit and if $300 and 8 rshift 1+ bit else 1 then   \ PPRE1 prescaler
+  dup 10 bit and if $300 and 8 rshift 1+ bit else drop 1 then   \ PPRE1 prescaler
   * clock-hz @ swap /
 ;
 
