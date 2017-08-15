@@ -1,12 +1,6 @@
 \ Hardware I2C driver for STM32F103.
-
 \ TODO
-\ Rebase DONE
 \ Document
-\ In interrupt, detect errors DONE
-\ Variable bit rates DONE
-\ Publish
-
 
 \ Define pins
 [ifndef] SCL  PB6 constant SCL  [then]
@@ -38,7 +32,6 @@ $40005800 constant I2C2
 \ $40021000 constant RCC
      RCC $10 + constant RCC-APB1RSTR
      RCC $14 + constant RCC-AHBENR
-
 
     [ifndef] DMA1 $40020000 constant DMA1 [then]
 
@@ -168,40 +161,40 @@ $40005800 constant I2C2
   case
     32 of \ TX event: stop or RX 
       6 i2c-irq-done? if
-	6 i2c-dma-disable
-	21 bit DMA1-IFCR  bis!                    \ CTCIF6
-	i2c.cnt @ case
-	  0 of
-	    i2c-EV8_2 i2c-stop
-	    begin 9 bit I2C1-CR1 hbit@ 0= until   \ Wait for STOP to clear
-	  endof
-	  1 of
-	    \ Wait for TxE: don't clobber last byte
-	    i2c-SR1-TxE i2c-SR1-wait
-	    i2c-start                             \ Restart
-	    i2c-rx-1 drop                         \ discard nak
-	  endof
-	  ( #rx )
-	  \ Wait for TxE: don't clobber last byte
-	  i2c-SR1-TxE i2c-SR1-wait
-	  \ Configure DMA 7
-	  7 i2c-dma-enable
-	  \ Start rx (will wait for I2C1 to be ready)
-	  12 bit I2C1-CR2  hbis!                  \ LAST
-	  \ Send restart  
-	  i2c-start                               \ Restart
-	  1 i2c-send-addr drop
-	endcase
+        6 i2c-dma-disable
+        21 bit DMA1-IFCR  bis!                    \ CTCIF6
+        i2c.cnt @ case
+          0 of
+            i2c-EV8_2 i2c-stop
+            begin 9 bit I2C1-CR1 hbit@ 0= until   \ Wait for STOP to clear
+          endof
+          1 of
+            \ Wait for TxE: don't clobber last byte
+            i2c-SR1-TxE i2c-SR1-wait
+            i2c-start                             \ Restart
+            i2c-rx-1 drop                         \ discard nak
+          endof
+          ( #rx )
+          \ Wait for TxE: don't clobber last byte
+          i2c-SR1-TxE i2c-SR1-wait
+          \ Configure DMA 7
+          7 i2c-dma-enable
+          \ Start rx (will wait for I2C1 to be ready)
+          12 bit I2C1-CR2  hbis!                  \ LAST
+          \ Send restart  
+          i2c-start                               \ Restart
+          1 i2c-send-addr drop
+        endcase
       else i2c-stop then                        \ Error irq: give up
     endof
     33 of \ RX event: always stop
       7 i2c-irq-done? if
-	7 i2c-dma-disable
-	25 bit DMA1-IFCR  bis!                    \ CTCIF7
-	i2c-stop
-	begin 9 bit I2C1-CR1 hbit@ 0= until       \ Wait for STOP to clear
-	\ Let RX buffer know of new data
-	i2c.cnt @ i2c.rxbuf 1+ c!
+        7 i2c-dma-disable
+        25 bit DMA1-IFCR  bis!                    \ CTCIF7
+        i2c-stop
+        begin 9 bit I2C1-CR1 hbit@ 0= until       \ Wait for STOP to clear
+        \ Let RX buffer know of new data
+        i2c.cnt @ i2c.rxbuf 1+ c!
       else i2c-stop then                          \ Error irq: give up
     endof
   endcase
@@ -312,7 +305,7 @@ $40005800 constant I2C2
   if \ #TX=0
     i2c.cnt @ case
       0 of                                   \ Probe
-	i2c-start
+        i2c-start
         0 i2c-send-addr
         i2c-stop
       endof
