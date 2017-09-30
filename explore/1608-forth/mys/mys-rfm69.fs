@@ -1,26 +1,30 @@
 
 ( Mysensors driver for rfm69 radio
 
-Protocol version 2.0, new style rfm69
+\ Protocol version 2.0, new style rfm69
 
-In development, does not support everything
+\ In development, does not support everything
 
-Tesing agains g6s.fs default
+\ Strongly based on https://github.com/jeelabs/embello/blob/master/explore/1608-forth/flib/spi/rf69.fs
 
-Pinout: https://jeelabs.org/article/1649e/
-RFM69CW 	STM32F103 	BOTH
-SSEL (NSS) 	PA4 	+3.3V
-SCLK 	        PA5 	GND
-MISO     	PA6 	
-MOSI     	PA7
-)
+\ Tesing agains g6s.fs default
+
+\ Pinout: https://jeelabs.org/article/1649e/
+\ RFM69CW 	STM32F103 	BOTH
+\ SSEL (NSS) 	PA4 	+3.3V
+\ SCLK 	        PA5 	GND
+\ MISO     	PA6 	
+\ MOSI     	PA7
+\ )
 
 \ needs ring.fs
 \ needs multi.fs
 \ needs rfm69.fs ?
 
-include ring.fs
-include rfm69.fs
+compiletoram
+
+include ../flib/any/ring.fs
+
 
 PA11 constant mys-pin-DIO0
 PA12 constant mys-pin-DIO1
@@ -29,6 +33,45 @@ PB3  constant mys-pin-DIO3
 PB4  constant mys-pin-DIO4
 PB5  constant mys-pin-DIO5
 
+       $00 constant RF:FIFO
+       $01 constant RF:OP
+       $07 constant RF:FRF
+       $11 constant RF:PA
+       $18 constant RF:LNA
+       $1F constant RF:AFC
+       $24 constant RF:RSSI
+       $27 constant RF:IRQ1
+       $28 constant RF:IRQ2
+       $2F constant RF:SYN1
+       $31 constant RF:SYN3
+       $39 constant RF:ADDR
+       $3A constant RF:BCAST
+       $3C constant RF:THRESH
+       $3D constant RF:PCONF2
+       $3E constant RF:AES
+
+0 2 lshift constant RF:M_SLEEP
+1 2 lshift constant RF:M_STDBY
+2 2 lshift constant RF:M_FS
+3 2 lshift constant RF:M_TX
+4 2 lshift constant RF:M_RX
+
+       $C2 constant RF:START_TX
+       $42 constant RF:STOP_TX
+       $80 constant RF:RCCALSTART
+
+     7 bit constant RF:IRQ1_MRDY
+     6 bit constant RF:IRQ1_RXRDY
+     3 bit constant RF:IRQ1_RSSI
+     2 bit constant RF:IRQ1_TIMEOUT
+     0 bit constant RF:IRQ1_SYNC
+
+     6 bit constant RF:IRQ2_FIFO_NE
+     3 bit constant RF:IRQ2_SENT
+     2 bit constant RF:IRQ2_RECVD
+     1 bit constant RF:IRQ2_CRCOK
+
+     0 variable rf.mode \ last set chip mode
 
 create mys-rf:init  \ initialise the radio, each 16-bit word is <reg#,val>
 \ TODO: how much can I reuse from the rfm69 driver?
@@ -58,3 +101,84 @@ hex
   6F30 h, \ TODO Te st DAGC lowbeta 0
   0 h,  \ sentinel
 decimal align
+
+\ r/w access to the RF registers
+: rf!@ ( b reg -- b ) +spi >spi >spi> -spi ;
+: rf! ( b reg -- ) $80 or rf!@ drop ;
+: rf@ ( reg -- b ) 0 swap rf!@ ;
+
+: rf-h! ( h -- ) dup $FF and swap 8 rshift rf! ;
+
+: rf-n@spi ( addr len -- )  \ read N bytes from the FIFO
+  0 do  RF:FIFO rf@ over c! 1+  loop drop ;
+: rf-n!spi ( addr len -- )  \ write N bytes to the FIFO
+  0 do dup c@ RF:FIFO rf! 1+ loop drop ;
+
+: rf!mode ( b -- )  \ set the radio mode, and store a copy in a variable
+  dup rf.mode !
+  RF:OP rf@  $E3 and  or RF:OP rf!
+  begin  RF:IRQ1 rf@  RF:IRQ1_MRDY and  until ;
+
+
+: rf-config! ( addr -- ) \ load many registers from <reg,value> array, zero-terminated
+  RF:M_STDBY rf!mode \ some regs don't program in sleep mode, go figure...
+  begin  dup h@  ?dup while  rf-h!  2+ repeat drop
+;
+
+: rf-freq ( u -- )  \ set the frequency, supports any input precision
+  begin dup 100000000 < while 10 * repeat
+  ( f ) 2 lshift  32000000 11 rshift u/mod nip  \ avoid / use u/ instead
+  ( u ) dup 10 rshift  RF:FRF rf!
+  ( u ) dup 2 rshift  RF:FRF 1+ rf!
+  ( u ) 6 lshift RF:FRF 2+ rf!
+;
+
+: rf-check ( b -- )  \ check that the register can be accessed over SPI
+  begin  dup RF:SYN1 rf!  RF:SYN1 rf@  over = until
+  drop ;
+
+: rf-ini (  freq -- )  \ internal init of the RFM69 radio module
+  spi-init
+  $AA rf-check  $55 rf-check  \ will hang if there is no radio!
+  rf:init rf-config!
+  rf-freq ; \ rf-group ;
+
+: rf-init ( -- )  \ init RFM69 with current rf.group and rf.freq values
+  868000000 rf-ini ;
+
+: rf-send ( addr count recip -- )  \ send out one packet to recipient recip
+  RF:M_STDBY rf!mode
+  \ n
+  \ recip
+  \ ver
+  \ sender
+  \ cflags
+  \ seq
+  over 6 + RF:FIFO rf!                     \ n+6
+           RF:FIFO rf!                     \ recip
+  1        RF:FIFO rf!                     \ version
+  123      RF:FIFO rf!                     \ sender (TODO)
+  0        RF:FIFO rf!                     \ flags (TODO)
+  1        RF:FIFO rf!                     \ seq (TODO)
+  ( addr count ) rf-n!spi                  \ body
+  RF:M_TX rf!mode
+  begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
+  RF:M_STDBY rf!mode ;
+
+: rf. ( -- )  \ print out all the RF69 registers
+  cr 4 spaces  base @ hex  16 0 do space i . loop  base !
+  $60 $00 do
+    cr
+    i h.2 ." :"
+    16 0 do  space
+      i j + ?dup if rf@ h.2 else ." --" then
+    loop
+    $10 +loop ;
+
+
+
+." Testing RFM69 Mysensors "
+
+." Sending test message "
+
+
