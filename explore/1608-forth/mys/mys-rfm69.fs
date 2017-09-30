@@ -140,7 +140,7 @@ decimal align
 : rf-ini (  freq -- )  \ internal init of the RFM69 radio module
   spi-init
   $AA rf-check  $55 rf-check  \ will hang if there is no radio!
-  rf:init rf-config!
+  mys-rf:init rf-config!
   rf-freq ; \ rf-group ;
 
 : rf-init ( -- )  \ init RFM69 with current rf.group and rf.freq values
