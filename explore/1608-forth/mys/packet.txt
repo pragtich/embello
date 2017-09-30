@@ -1,0 +1,30 @@
+typedef struct {
+	uint8_t packetLen;								//!< Packet length
+	uint8_t recipient;								//!< Payload recipient
+	uint8_t version;								//!< Header version
+	uint8_t sender;									//!< Payload sender
+	rfm69_controlFlags_t controlFlags;				//!< Control flags, used for ACK
+	rfm69_sequenceNumber_t sequenceNumber;			//!< Packet sequence number, used for ACK
+} __attribute__((packed)) rfm69_header_t;
+/**
+* @brief RFM69  ACK packet structure
+*/
+typedef struct {
+	rfm69_sequenceNumber_t sequenceNumber;			//!< sequence number
+	rfm69_RSSI_t RSSI;								//!< RSSI
+} __attribute__((packed)) rfm69_ack_t;
+
+typedef struct {
+	union {
+		struct {
+			rfm69_header_t header;						//!< Packet header
+			union {
+				uint8_t payload[RFM69_MAX_PAYLOAD_LEN];	//!< Union: Data Payload, i.e. MySensors message
+				rfm69_ack_t ACK;						//!< Union: ACK payload (internal)
+			};
+		};
+		uint8_t data[RFM69_MAX_PACKET_LEN];				//!< RAW data access
+	};
+	uint8_t payloadLen;									//!< Length of payload (excluding header)
+	rfm69_RSSI_t RSSI;									//!< RSSI of current packet, RSSI = value - 137
+} __attribute__((packed)) rfm69_packet_t;
