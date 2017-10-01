@@ -102,6 +102,15 @@ hex
   0 h,  \ sentinel
 decimal align
 
+create mys:testmsg
+hex
+01 c,
+01 c,
+01 c,
+00 c,
+02 c,
+00 c,
+decimal align
 \ r/w access to the RF registers
 : rf!@ ( b reg -- b ) +spi >spi >spi> -spi ;
 : rf! ( b reg -- ) $80 or rf!@ drop ;
@@ -156,9 +165,9 @@ decimal align
   \ seq
   over 6 + RF:FIFO rf!                     \ n+6
            RF:FIFO rf!                     \ recip
-  1        RF:FIFO rf!                     \ version
+  2        RF:FIFO rf!                     \ version
   123      RF:FIFO rf!                     \ sender (TODO)
-  1        RF:FIFO rf!                     \ flags (TODO)
+  0        RF:FIFO rf!                     \ flags (TODO)
   1        RF:FIFO rf!                     \ seq (TODO)
   ( addr count ) rf-n!spi                  \ body
   RF:M_TX rf!mode
@@ -182,5 +191,5 @@ rf-init
 
 ." Sending test message "
 
-mys-rf:init 6 0 rf-send  
+mys:testmsg 5 0 rf-send  
 
