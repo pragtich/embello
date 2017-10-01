@@ -158,7 +158,7 @@ decimal align
            RF:FIFO rf!                     \ recip
   1        RF:FIFO rf!                     \ version
   123      RF:FIFO rf!                     \ sender (TODO)
-  0        RF:FIFO rf!                     \ flags (TODO)
+  1        RF:FIFO rf!                     \ flags (TODO)
   1        RF:FIFO rf!                     \ seq (TODO)
   ( addr count ) rf-n!spi                  \ body
   RF:M_TX rf!mode
@@ -178,7 +178,9 @@ decimal align
 
 
 ." Testing RFM69 Mysensors "
+rf-init  
 
 ." Sending test message "
 
+mys-rf:init 6 0 rf-send  
 
