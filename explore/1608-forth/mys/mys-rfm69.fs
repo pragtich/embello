@@ -104,11 +104,14 @@ decimal align
 
 create mys:testmsg
 hex
-01 c,
-01 c,
-01 c,
+11 c,
+11 c,
 00 c,
-02 c,
+12 c,
+41 c,
+10 c,
+03 c,
+00 c,
 00 c,
 decimal align
 \ r/w access to the RF registers
@@ -121,7 +124,7 @@ decimal align
 : rf-n@spi ( addr len -- )  \ read N bytes from the FIFO
   0 do  RF:FIFO rf@ over c! 1+  loop drop ;
 : rf-n!spi ( addr len -- )  \ write N bytes to the FIFO
-  0 do dup c@ RF:FIFO rf! 1+ loop drop ;
+  0 do dup c@ dup h.2 RF:FIFO rf! 1+ loop drop ;
 
 : rf!mode ( b -- )  \ set the radio mode, and store a copy in a variable
   dup rf.mode !
@@ -163,13 +166,13 @@ decimal align
   \ sender
   \ cflags
   \ seq
-  over 6 + RF:FIFO rf!                     \ n+6
+  over 5 + RF:FIFO rf!                     \ n+6
            RF:FIFO rf!                     \ recip
   2        RF:FIFO rf!                     \ version
   123      RF:FIFO rf!                     \ sender (TODO)
   0        RF:FIFO rf!                     \ flags (TODO)
   1        RF:FIFO rf!                     \ seq (TODO)
-  ( addr count ) rf-n!spi                  \ body
+  ( addr count )  rf-n!spi                  \ body
   RF:M_TX rf!mode
   begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
   RF:M_STDBY rf!mode ;
@@ -191,5 +194,5 @@ rf-init
 
 ." Sending test message "
 
-mys:testmsg 5 0 rf-send  
+mys:testmsg 9 0 rf-send  
 
