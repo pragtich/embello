@@ -25,7 +25,6 @@ compiletoram
 
 include ../flib/any/ring.fs
 
-
 PA11 constant mys-pin-DIO0
 PA12 constant mys-pin-DIO1
 PA15 constant mys-pin-DIO2
@@ -113,7 +112,19 @@ hex
 03 c,
 00 c,
 00 c,
-decimal align
+decimal calign
+
+create mys:findparent
+hex 
+11 c,
+11 c,
+ff c,
+02 c,
+03 c,
+07 c,
+ff c,
+decimal calign
+
 \ r/w access to the RF registers
 : rf!@ ( b reg -- b ) +spi >spi >spi> -spi ;
 : rf! ( b reg -- ) $80 or rf!@ drop ;
@@ -124,7 +135,7 @@ decimal align
 : rf-n@spi ( addr len -- )  \ read N bytes from the FIFO
   0 do  RF:FIFO rf@ over c! 1+  loop drop ;
 : rf-n!spi ( addr len -- )  \ write N bytes to the FIFO
-  0 do dup c@ dup h.2 RF:FIFO rf! 1+ loop drop ;
+  0 do dup c@  dup h.2  RF:FIFO rf! 1+ loop drop ;
 
 : rf!mode ( b -- )  \ set the radio mode, and store a copy in a variable
   dup rf.mode !
@@ -188,11 +199,15 @@ decimal align
     $10 +loop ;
 
 
+( Receive ring )
+16 mys-MAXLEN * 4 + buffer: buf  buf 16 init-ring
+
 
 ." Testing RFM69 Mysensors "
 rf-init  
 
 ." Sending test message "
 
-mys:testmsg 9 0 rf-send  
+mys:findparent 7 0 rf-send
+( mys:testmsg 9 0 rf-send   )
 
