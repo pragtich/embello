@@ -26,4 +26,4 @@
 
 : getafix   0  ['] <Fixed.Pt;#> 3 cells + ! 
             BEGIN   KEY   DUP   13 <>      WHILE
-            DUP   cat->col#  <Fixed.pt;#>   REPEAT ;
+            DUP   cat->col#  <Fixed.pt;#>   REPEAT drop ;
