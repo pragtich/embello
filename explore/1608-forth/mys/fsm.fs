@@ -17,15 +17,21 @@
 : ;FSM   DOES>                 ( col# adr -- )
 \ 	  3 cells -
  	  dup hex.
-          DUP >R  2@  * +   ( -- col#+width*state )
-          2*  2+  CELLS +       ( -- offset-to-action)
-          DUP >R               ( -- offset-to-action)
-	  dup hex.
-          @ EXECUTE            ( ? )
+          dup >R  2@           ( col#  width state )
+	  * +                  ( col#+width*state )
+          2*  2+  CELLS        ( offset-to-action)
+	  R@ +                 ( @action)
+          DUP >R               ( offset-to-action)
+	  dup hex. space
+          @ EXECUTE
+          space
           R> CELL+             ( -- ? offset-to-update)
-	  dup hex.
+	  dup hex. space
           @ EXECUTE            ( -- ? state')
-          R> !   ;  ( ? )       \ update state
+	  dup . space
+          R> !
+	  cr
+           ;  ( ? )       \ update state
 
 : |  ' ,     ;
 : || ' , ' , ;
@@ -62,8 +68,7 @@
    ( 1 )  ||   DROP >1 || EMIT >1 || DROP >1  || EMIT >2
    ( 2 )  ||   DROP >2 || EMIT >2 || DROP >2  || DROP >2 ;FSM
 
-: state< ' 3 cells + ; 
-: getafix   0  state< <Fixed.Pt;#>  ! 
+: getafix   0  ['] <Fixed.Pt;#> 3 cells + ! 
             BEGIN   KEY   DUP   13 <>      WHILE
             DUP   cat->col#  <Fixed.pt;#>   REPEAT ;
 
