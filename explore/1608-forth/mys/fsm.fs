@@ -12,16 +12,26 @@
 : WIDE   0 ;
 
 : FSM:   ( width 0 -- )
-      CREATE   ,  ,   ]
-      DOES>               ( col# adr -- )
-         DUP >R  2@  *  + ( -- col#+width*state )
-         2*  2+  CELLS    ( -- offset-to-action)
-         DUP >R           ( -- offset-to-action)
-         @ EXECUTE        ( ? )
-         R> CELL+         ( -- offset-to-update)
-         @ EXECUTE        ( -- state')
-         R> !   ;         \ update state
+  CREATE , , align ;
 
+: ;FSM   DOES>                 ( col# adr -- )
+\ 	  3 cells -
+ 	  dup hex.
+          DUP >R  2@  * +   ( -- col#+width*state )
+          2*  2+  CELLS +       ( -- offset-to-action)
+          DUP >R               ( -- offset-to-action)
+	  dup hex.
+          @ EXECUTE            ( ? )
+          R> CELL+             ( -- ? offset-to-update)
+	  dup hex.
+          @ EXECUTE            ( -- ? state')
+          R> !   ;  ( ? )       \ update state
+
+: |  ' ,     ;
+: || ' , ' , ;
+
+\ Would like to do something like the following, but it chokes on line endings
+\ CREATE   ,  , ['] ; begin ' 2dup <>  while , repeat drop 
 
 0 CONSTANT >0   3 CONSTANT >3   6 CONSTANT >6    \ these indicate state
 1 CONSTANT >1   4 CONSTANT >4   7 CONSTANT >7    \ transitions in tabular
@@ -46,13 +56,15 @@
    ;                                             \ other   -> 0
 
 4 WIDE FSM: <Fixed.Pt;#>
-\ input:  |  other?  |  num?   |  minus?  |   dp?     |
+\ input:  ||   other?  ||  num?   ||  minus?  ||   dp?     
 \ state:  ---------------------------------------------
-   ( 0 )     DROP >0    EMIT >1   EMIT >1     EMIT >2
-   ( 1 )     DROP >1    EMIT >1   DROP >1     EMIT >2
-   ( 2 )     DROP >2    EMIT >2   DROP >2     DROP >2 ;
+   ( 0 )  ||   DROP >0 || EMIT >1 || EMIT >1  || EMIT >2
+   ( 1 )  ||   DROP >1 || EMIT >1 || DROP >1  || EMIT >2
+   ( 2 )  ||   DROP >2 || EMIT >2 || DROP >2  || DROP >2 ;FSM
 
-: Getafix   0  ' <Fixed.Pt;#> !
+: state< ' 3 cells + ; 
+: getafix   0  state< <Fixed.Pt;#>  ! 
             BEGIN   KEY   DUP   13 <>      WHILE
             DUP   cat->col#  <Fixed.pt;#>   REPEAT ;
+
 
