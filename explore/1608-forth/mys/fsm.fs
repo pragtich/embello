@@ -16,22 +16,15 @@
 
 : ;FSM   DOES>                 ( col# adr -- )
 \ 	  3 cells -
- 	  dup hex.
           dup >R  2@           ( col#  width state )
 	  * +                  ( col#+width*state )
           2*  2+  CELLS        ( offset-to-action)
 	  R@ +                 ( @action)
           DUP >R               ( offset-to-action)
-	  dup hex. space
           @ EXECUTE
-          space
           R> CELL+             ( -- ? offset-to-update)
-	  dup hex. space
           @ EXECUTE            ( -- ? state')
-	  dup . space
-          R> !
-	  cr
-           ;  ( ? )       \ update state
+          R> ! ;               ( ? )       \ update state
 
 : |  ' ,     ;
 : || ' , ' , ;
