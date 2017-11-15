@@ -15,8 +15,6 @@
   <BUILDS , , align ;
 
 : ;FSM   DOES>                 ( col# adr -- )
-	 dup hex.
-\ 	  3 cells -
           dup >R  2@           ( col#  width state )
 	  * +                  ( col#+width*state )
           2*  2+  CELLS        ( offset-to-action)
