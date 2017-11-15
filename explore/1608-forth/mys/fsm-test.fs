@@ -2,6 +2,8 @@
 \ Testing fsm.fs
 \ needs fsm.fs
 
+include fsm.fs
+
 : WITHIN   ( n a b -- f) 2DUP MIN  -ROT  MAX
              ROT TUCK MIN  -ROT MAX  = ;
 
