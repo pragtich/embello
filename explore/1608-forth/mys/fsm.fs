@@ -12,9 +12,10 @@
 : WIDE   0 ;
 
 : FSM:   ( width 0 -- )
-  CREATE , , align ;
+  <BUILDS , , align ;
 
 : ;FSM   DOES>                 ( col# adr -- )
+	 dup hex.
 \ 	  3 cells -
           dup >R  2@           ( col#  width state )
 	  * +                  ( col#+width*state )
@@ -28,6 +29,11 @@
 
 : |  ' ,     ;
 : || ' , ' , ;
+
+
+: >STATE ( xt -- adr) \ When passed the xt of a FSM, gives data addr
+  begin 2+ dup h@ $4780 = until 2+ ; \ Search for the blx r0 just before the data
+
 
 \ Would like to do something like the following, but it chokes on line endings
 \ CREATE   ,  , ['] ; begin ' 2dup <>  while , repeat drop 
