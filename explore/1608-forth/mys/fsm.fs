@@ -32,6 +32,8 @@
 : >STATE ( xt -- adr) \ When passed the xt of a FSM, gives data addr
   begin 2+ dup h@ $4780 = until 2+ ; \ Search for the blx r0 just before the data
 
+: STATE! ( a xt -- ) \ Set FSM state to a
+  >STATE ! ;
 
 \ Would like to do something like the following, but it chokes on line endings
 \ CREATE   ,  , ['] ; begin ' 2dup <>  while , repeat drop 

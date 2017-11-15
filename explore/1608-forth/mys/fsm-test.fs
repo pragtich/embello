@@ -26,6 +26,6 @@ include fsm.fs
    ( 1 )  ||   DROP >1 || EMIT >1 || DROP >1  || EMIT >2
    ( 2 )  ||   DROP >2 || EMIT >2 || DROP >2  || DROP >2 ;FSM
 
-: getafix   0  ['] <Fixed.Pt;#> 3 cells + ! 
+: getafix   0  ['] <Fixed.Pt;#> STATE! 
             BEGIN   KEY   DUP   13 <>      WHILE
             DUP   cat->col#  <Fixed.pt;#>   REPEAT drop ;
