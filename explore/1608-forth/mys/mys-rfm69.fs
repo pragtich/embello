@@ -22,8 +22,13 @@
 \ needs rfm69.fs ?
 
 compiletoram
-
+\ include ../flib/mecrisp/hexdump.fs		
+\ include ../flib/stm32f1/io.fs
+\ include ../flib/stm32f1/hal.fs
+\ include ../flib/pkg/pins48.fs
 include ../flib/any/ring.fs
+\ include ../flib/mecrisp/multi-irq.fs
+include fsm.fs
 
 PA11 constant mys-pin-DIO0
 PA12 constant mys-pin-DIO1
@@ -72,6 +77,8 @@ PB5  constant mys-pin-DIO5
 
      0 variable rf.mode \ last set chip mode
 
+64 constant mys:MAXLEN \ TODO: how long?
+     
 create mys-rf:init  \ initialise the radio, each 16-bit word is <reg#,val>
 \ TODO: how much can I reuse from the rfm69 driver?
 hex
@@ -135,7 +142,7 @@ decimal calign
 : rf-n@spi ( addr len -- )  \ read N bytes from the FIFO
   0 do  RF:FIFO rf@ over c! 1+  loop drop ;
 : rf-n!spi ( addr len -- )  \ write N bytes to the FIFO
-  0 do dup c@  dup h.2  RF:FIFO rf! 1+ loop drop ;
+  0 do dup c@   RF:FIFO rf! 1+ loop drop ;
 
 : rf!mode ( b -- )  \ set the radio mode, and store a copy in a variable
   dup rf.mode !
@@ -200,14 +207,40 @@ decimal calign
 
 
 ( Receive ring )
-16 mys-MAXLEN * 4 + buffer: buf  buf 16 init-ring
+16 mys:MAXLEN * 4 + buffer: buf  buf 16 init-ring
 
 
-." Testing RFM69 Mysensors "
-rf-init  
 
-." Sending test message "
-
-mys:findparent 7 0 rf-send
 ( mys:testmsg 9 0 rf-send   )
 
+
+
+0 constant mys:INIT    \ 0 initialize
+1 constant mys:PARENT  \ 1 find parent
+2 constant mys:ERROR   \ 2 get ID
+\ 3 check uplink
+\ 4 ready
+\ 5 fail
+
+: mys-init rf-init 500 ms ." Testing RFM69 mysensors" cr ;
+: mys-parent
+  ." Finding parent" cr
+  mys:findparent 7 0 rf-send ;
+: mys-error ." ERROR " cr ;
+
+2 wide FSM: TSM
+                  (  OK case )              ( NOK case )
+( state=0 ) || mys-init   mys:PARENT || mys-error mys:ERROR
+( state=1 ) || mys-parent mys:PARENT || mys-error mys:ERROR
+;FSM
+
+task: transport
+: transport& ( -- )
+  0 ['] TSM STATE!
+  transport activate
+  0 TSM 0 TSM
+  begin
+    1000 ms ." ."
+  again ;
+
+multitask transport&
