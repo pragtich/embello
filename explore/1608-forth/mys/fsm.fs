@@ -12,7 +12,7 @@
 : WIDE   0 ;
 
 : FSM:   ( width 0 -- )
-  <BUILDS , , align ;
+  <BUILDS , , ;
 
 : ;FSM   DOES>                 ( col# adr -- )
           dup >R  2@           ( col#  width state )
