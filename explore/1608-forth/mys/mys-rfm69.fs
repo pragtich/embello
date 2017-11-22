@@ -206,13 +206,17 @@ decimal calign
     $10 +loop ;
 
 
-( Receive ring )
-16 mys:MAXLEN * 4 + buffer: buf  buf 16 init-ring
+( Receive ring , Transmit ring )
+16 mys:MAXLEN * 4 + buffer: rxbuf  rxbuf 16 init-ring
+8  mys:MAXLEN * 4 + buffer: txbuf  txbuf 8  init-ring
 
-
-
-( mys:testmsg 9 0 rf-send   )
-
+: >mys  ( caddr -- ) \ Adds message (array of chars) starting at addr to txbuf
+  txbuf ring? if
+    mys:MAXLEN 1 do dup c@ txbuf ring> cell+ loop
+  else
+    ." Error: tx buf full, dropping message"
+  then
+;
 
 
 0 constant mys:INIT    \ 0 initialize
@@ -225,7 +229,9 @@ decimal calign
 : mys-init rf-init 500 ms ." Testing RFM69 mysensors" cr ;
 : mys-parent
   ." Finding parent" cr
-  mys:findparent 7 0 rf-send ;
+  mys:findparent >mys ;
+\  mys:findparent 7 0 rf-send ;
+
 : mys-error ." ERROR " cr ;
 
 2 wide FSM: TSM
@@ -233,6 +239,8 @@ decimal calign
 ( state=0 ) || mys-init   mys:PARENT || mys-error mys:ERROR
 ( state=1 ) || mys-parent mys:PARENT || mys-error mys:ERROR
 ;FSM
+
+
 
 task: transport
 : transport& ( -- )
@@ -243,4 +251,16 @@ task: transport
     1000 ms ." ."
   again ;
 
-multitask transport&
+task: mys-tx
+: mys-tx& ( -- )
+  mys-tx activate
+  begin
+    txbuf ring@ mys:MAXLEN >=
+    if
+      ( send first in ring )
+      ( TODO make message ring )
+    then
+    pause
+  again ;
+
+multitask transport& mys-tx&
