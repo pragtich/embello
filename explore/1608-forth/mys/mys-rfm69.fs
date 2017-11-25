@@ -26,7 +26,7 @@ compiletoram
 \ include ../flib/stm32f1/io.fs
 \ include ../flib/stm32f1/hal.fs
 \ include ../flib/pkg/pins48.fs
-include ../flib/any/ring.fs
+\ include ../flib/any/ring.fs
 \ include ../flib/mecrisp/multi-irq.fs
 include fsm.fs
 
@@ -218,6 +218,16 @@ decimal calign
   then
 ;
 
+: c!++ ( c c-addr -- c-addr + 1)
+  dup -rot c! 1+ ;
+
+: ring>cstr ( ring c-addr)
+  over ring>              ( ring c-addr # )
+  swap over               ( ring # c-addr # )
+  1 do                    ( ring # c-addr )
+    c!++ over ring> swap  ( ring c1+ c-addr+1 )
+  loop
+  c! drop ;
 
 0 constant mys:INIT    \ 0 initialize
 1 constant mys:PARENT  \ 1 find parent
@@ -256,6 +266,7 @@ task: mys-tx
   mys-tx activate
   begin
     txbuf ring@ mys:MAXLEN >=
+   
     if
       ( send first in ring )
       ( TODO make message ring )
