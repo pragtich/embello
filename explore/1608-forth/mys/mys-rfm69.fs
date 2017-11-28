@@ -195,6 +195,23 @@ decimal calign
   begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
   RF:M_STDBY rf!mode ;
 
+: mys-send ( caddr -- )  \ send out one preformatted packet
+  RF:M_STDBY rf!mode
+  \ Packet format:
+  \ 1 length
+  \ 2 recipient
+  \ 3 version
+  \ 4 sender
+  \ 5 control flags
+  \ 6 sequence #
+  \ 7+ payload or ack
+  dup c@ 0 do
+    c++@ RF:FIFO rf!
+  loop
+  RF:M_TX rf!mode
+  begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
+  RF:M_STDBY rf!mode ;
+
 : rf. ( -- )  \ print out all the RF69 registers
   cr 4 spaces  base @ hex  16 0 do space i . loop  base !
   $60 $00 do
@@ -261,14 +278,15 @@ task: transport
     1000 ms ." ."
   again ;
 
+create mys:txmsg mys:MAXLEN allot 
 task: mys-tx
 : mys-tx& ( -- )
   mys-tx activate
   begin
-    txbuf ring@ mys:MAXLEN >=
-   
+    txbuf ring#
     if
-      ( send first in ring )
+      txbuf mys:txmsg ring>cstr
+      mys:txmsg mys-send
       ( TODO make message ring )
     then
     pause
