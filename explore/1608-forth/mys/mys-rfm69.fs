@@ -225,15 +225,16 @@ decimal calign
 
 
 ( Receive ring , Transmit ring )
-16 mys:MAXLEN * 4 + buffer: rxbuf  rxbuf 16 init-ring
-8  mys:MAXLEN * 4 + buffer: txbuf  txbuf 8  init-ring
+16 mys:MAXLEN * 4 + buffer: rxbuf  rxbuf 16 mys:MAXLEN *  init-ring
+8  mys:MAXLEN * 4 + buffer: txbuf  txbuf 8  mys:MAXLEN *  init-ring
 
 : >mys  ( caddr -- ) \ Adds message (array of chars) starting at addr to txbuf
-  txbuf ring? if
-    mys:MAXLEN 1 do dup c@ txbuf ring> cell+ loop
+  txbuf ring? if \ TODO: proper length checking
+    dup c@ 0 do dup c@ dup h.2 space txbuf >ring 1+ loop
   else
     ." Error: tx buf full, dropping message"
   then
+  drop
 ;
 
 : c!++ ( c c-addr -- c-addr + 1)
@@ -276,7 +277,7 @@ task: transport
   transport activate
   0 TSM 0 TSM
   begin
-    1000 ms ." ."
+    pause 1000 ms ." ."
   again ;
 
 create mys:txmsg mys:MAXLEN allot 
@@ -293,4 +294,4 @@ task: mys-tx
     pause
   again ;
 
-multitask transport& mys-tx&
+\ multitask transport& mys-tx&
