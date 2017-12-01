@@ -123,9 +123,9 @@ decimal calign
 
 create mys:findparent
 hex
-
-11 c,
-11 c,
+08 c,
+ff c,
+ff c,
 ff c,
 02 c,
 03 c,
