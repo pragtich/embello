@@ -7,6 +7,8 @@
 
 \ Strongly based on https://github.com/jeelabs/embello/blob/master/explore/1608-forth/flib/spi/rf69.fs
 
+\ Debugging with slow SPI: $0074 SPI1-CR1 !
+
 \ Tesing agains g6s.fs default
 
 \ Pinout: https://jeelabs.org/article/1649e/
@@ -102,7 +104,9 @@ hex
   3842 h, \ TODO max 66 byte payload
   39ff h, \ TODO mysensors has this, RFM69_BROADCAST_ADDRESS=255 = startup value
   3aff h, \ TODO mysensors has this, RFM69_BROADCAST_ADDRESS=255
-  3C05 h, \ fifo thres TODO RFM69_FIFOTHRESH_TXSTART_FIFOTHRESH | (RFM69_HEADER_LEN - 1)  = 0 | (6-1)=5
+  \ 3C05 h, \ fifo thres TODO RFM69_FIFOTHRESH_TXSTART_FIFOTHRESH | (RFM69_HEADER_LEN - 1)  = 0 | (6-1)=5
+ \ 3C8F h,
+  3C07 h,
   3D10 h, \ TODO RFM69_PACKET2_RXRESTARTDELAY_2BITS | RFM69_PACKET2_AUTORXRESTART_OFF | RFM69_PACKET2_AES_OFF
   6F30 h, \ TODO Te st DAGC lowbeta 0
   0 h,  \ sentinel
@@ -121,9 +125,20 @@ hex
 00 c,
 decimal calign
 
+create mys:oldparent
+hex 
+11 c,
+11 c,
+ff c,
+02 c,
+03 c,
+07 c,
+ff c,
+decimal calign
+
 create mys:findparent
 hex
-08 c,
+07 c,
 ff c,
 ff c,
 ff c,
@@ -143,7 +158,7 @@ decimal calign
 : rf-n@spi ( addr len -- )  \ read N bytes from the FIFO
   0 do  RF:FIFO rf@ over c! 1+  loop drop ;
 : rf-n!spi ( addr len -- )  \ write N bytes to the FIFO
-  0 do dup c@   RF:FIFO rf! 1+ loop drop ;
+  ." >" 0 do dup c@  dup h.2 100 ms RF:FIFO rf! 1+ loop drop ." < " ;
 
 : rf!mode ( b -- )  \ set the radio mode, and store a copy in a variable
   dup rf.mode !
@@ -196,23 +211,6 @@ decimal calign
   begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
   RF:M_STDBY rf!mode ;
 
-: mys-send ( caddr -- )  \ send out one preformatted packet
-  RF:M_STDBY rf!mode
-  \ Packet format:
-  \ 1 length
-  \ 2 recipient
-  \ 3 version
-  \ 4 sender
-  \ 5 control flags
-  \ 6 sequence #
-  \ 7+ payload or ack
-  dup c@ 0 do
-    c++@ RF:FIFO rf!
-  loop
-  RF:M_TX rf!mode
-  begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
-  RF:M_STDBY rf!mode ;
-
 : rf. ( -- )  \ print out all the RF69 registers
   cr 4 spaces  base @ hex  16 0 do space i . loop  base !
   $60 $00 do
@@ -224,13 +222,39 @@ decimal calign
     $10 +loop ;
 
 
+
+: mys-send ( caddr -- )  \ send out one preformatted packet
+  RF:M_STDBY rf!mode
+  \ Packet format:
+  \ 1 length
+  \ 2 recipient
+  \ 3 version
+  \ 4 sender
+  \ 5 control flags
+  \ 6 sequence #
+  \ 7+ payload or ack
+  \ c++@ swap dup 0 do ( caddr+1 c0 )
+  \   dup h.2 ." ." RF:FIFO rf! c++@ swap ( caddr+1 c1 )
+  \ loop
+  \ 2drop
+
+  100 ms
+  c++@ swap dup RF:FIFO rf!
+  
+  rf-n!spi
+  \  rf.
+  RF:M_TX rf!mode
+  begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
+  RF:M_STDBY rf!mode ;
+
+
 ( Receive ring , Transmit ring )
-16 mys:MAXLEN * 4 + buffer: rxbuf  rxbuf 16 mys:MAXLEN *  init-ring
-8  mys:MAXLEN * 4 + buffer: txbuf  txbuf 8  mys:MAXLEN *  init-ring
+256 4 + buffer: rxbuf  rxbuf 256 init-ring
+256 4 + buffer: txbuf  txbuf 256 init-ring
 
 : >mys  ( caddr -- ) \ Adds message (array of chars) starting at addr to txbuf
   txbuf ring? if \ TODO: proper length checking
-    dup c@ 0 do dup c@ dup h.2 space txbuf >ring 1+ loop
+    dup c@ 1+ 0 do dup c@ dup h.2 space txbuf >ring 1+ loop
   else
     ." Error: tx buf full, dropping message"
   then
@@ -243,7 +267,7 @@ decimal calign
 : ring>cstr ( ring c-addr)
   over ring>              ( ring c-addr # )
   swap over               ( ring # c-addr # )
-  1 do                    ( ring # c-addr )
+  0 do                    ( ring # c-addr )
     c!++ over ring> swap  ( ring c1+ c-addr+1 )
   loop
   c! drop ;
@@ -255,7 +279,7 @@ decimal calign
 \ 4 ready
 \ 5 fail
 
-: mys-init rf-init 500 ms ." Testing RFM69 mysensors" cr ;
+: mys-init ." mys-init:" cr rf-init 500 ms ." Testing RFM69 mysensors" cr ;
 : mys-parent
   ." Finding parent" cr
   mys:findparent >mys ;
@@ -277,7 +301,7 @@ task: transport
   transport activate
   0 TSM 0 TSM
   begin
-    pause 1000 ms ." ."
+    pause 5000 ms ." ."
   again ;
 
 create mys:txmsg mys:MAXLEN allot 
