@@ -260,7 +260,7 @@ decimal calign
   \  rf.
   RF:M_TX rf!mode
   begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
-  RF:M_STDBY rf!mode ;
+  RF:M_RX rf!mode ;     \ TODO other drivers do not go straight to RX mode: why?
 
 
 ( Receive ring , Transmit ring )
@@ -308,6 +308,9 @@ decimal calign
 ( state=1 ) || mys-parent mys:PARENT || mys-error mys:ERROR
 ;FSM
 
+: mys-available? ( -- bool) \ Check if there is an incoming message in the FIFO
+  
+  ;
 
 
 task: transport
@@ -329,6 +332,16 @@ task: mys-tx
       txbuf mys:txmsg ring>cstr
       mys:txmsg mys-send
       ( TODO make message ring )
+    then
+    pause
+  again ;
+
+create mys:rxmsg mys:MAXLEN allot 
+task: mys-rx
+: mys-rx& ( -- )
+  mys-rx activate
+  begin
+    mys-available? if
     then
     pause
   again ;
