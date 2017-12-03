@@ -79,7 +79,10 @@ PB5  constant mys-pin-DIO5
 
      0 variable rf.mode \ last set chip mode
 
-64 constant mys:MAXLEN \ TODO: how long?
+64  constant mys:MAXLEN \ TODO: how long?
+5   constant mys:nHDR   \ Header length
+2   constant mys:VER    \ mysensors version: TODO
+$FF variable mys:parent
      
 create mys-rf:init  \ initialise the radio, each 16-bit word is <reg#,val>
 \ TODO: how much can I reuse from the rfm69 driver?
@@ -224,6 +227,13 @@ decimal calign
 
 : mys-send ( caddr -- )  \ send out one preformatted packet
   RF:M_STDBY rf!mode
+  \ RFM69 header:
+  \ n (complete packet excluding count byte)
+  \ recipient
+  \ version
+  \ sender
+  \ flags
+  \ sequence
   \ Packet format:
   \ 1 length
   \ 2 recipient
@@ -237,8 +247,14 @@ decimal calign
   \ loop
   \ 2drop
 
-  100 ms
-  c++@ swap dup RF:FIFO rf!
+  dup c@ mys:nHDR + RF:FIFO rf!
+  dup 1+  c@        RF:FIFO rf!  \ recipient
+  dup 2 + c@        RF:FIFO rf!  \ version
+  dup 3 + c@        RF:FIFO rf!  \ sender
+  dup 4 + c@        RF:FIFO rf!  \ flags
+  dup 5 + c@        RF:FIFO rf!  \ sequence
+  
+  c++@ swap \ dup RF:FIFO rf!
   
   rf-n!spi
   \  rf.
