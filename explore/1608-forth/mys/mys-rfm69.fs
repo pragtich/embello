@@ -192,6 +192,16 @@ decimal calign
 : rf-init ( -- )  \ init RFM69 with current rf.group and rf.freq values
   868000000 rf-ini ;
 
+: rf. ( -- )  \ print out all the RF69 registers
+  cr 4 spaces  base @ hex  16 0 do space i . loop  base !
+  $60 $00 do
+    cr
+    i h.2 ." :"
+    16 0 do  space
+      i j + ?dup if rf@ h.2 else ." --" then
+    loop
+    $10 +loop ;
+
 : rf-send ( addr count recip -- )  \ send out one packet to recipient recip
   RF:M_STDBY rf!mode
   \ n
@@ -210,17 +220,6 @@ decimal calign
   RF:M_TX rf!mode
   begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
   RF:M_STDBY rf!mode ;
-
-: rf. ( -- )  \ print out all the RF69 registers
-  cr 4 spaces  base @ hex  16 0 do space i . loop  base !
-  $60 $00 do
-    cr
-    i h.2 ." :"
-    16 0 do  space
-      i j + ?dup if rf@ h.2 else ." --" then
-    loop
-    $10 +loop ;
-
 
 
 : mys-send ( caddr -- )  \ send out one preformatted packet
