@@ -1,4 +1,3 @@
-
 ( Mysensors driver for rfm69 radio
 
 \ Protocol version 2.0, new style rfm69
@@ -83,7 +82,9 @@ PB5  constant mys-pin-DIO5
 5   constant mys:nHDR   \ Header length
 2   constant mys:VER    \ mysensors version: TODO
 $FF variable mys:parent
-     
+
+create mys:rxmsg mys:MAXLEN allot 
+
 create mys-rf:init  \ initialise the radio, each 16-bit word is <reg#,val>
 \ TODO: how much can I reuse from the rfm69 driver?
 hex
@@ -309,9 +310,33 @@ decimal calign
 ;FSM
 
 : mys-available? ( -- bool) \ Check if there is an incoming message in the FIFO
-  
-  ;
+  rf.mode @ RF:M_RX <> if
+    RF:M_RX rf!mode
+  then
+  RF:IRQ2 rf@ RF:IRQ2_CRCOK and  ;
 
+: mys-msg>parent ( caddr -- parent ) \ Get parent response from packet (no RFM69 header) or $FF if invalid
+  dup      c@ 13 =       ( caddr flag ) \ TODO: how long?
+  over 4 + c@  3 = and                  \ command type?
+  \ TODO: NEED TO FUCKING UNDERSTAND THE PACKET FORMAT
+  \ Trace the code: what is going into the packets
+  \ Then compare to logged packets: is this what I expect?
+  \ Focus on the findparent canned message which is now apparently working
+;
+
+: mys-waitparent ( ms -- parent ) \ Wait for a parent confirmation in ms milliseconds or returns $FF
+  0 do
+    mys-available? if
+      RF:FIFO rf@ mys:MAXLEN min
+      dup mys:rxmsg c!
+      mys:rxmsg 1+ over rf-n@spi
+      mys:rxmsg mys:nHDR + mys-msg>parent
+      dup $FF <> if unloop exit then
+    then
+    1 ms
+  loop
+  RF:M_STBY rf!mode
+  $FF ;
 
 task: transport
 : transport& ( -- )
@@ -336,14 +361,5 @@ task: mys-tx
     pause
   again ;
 
-create mys:rxmsg mys:MAXLEN allot 
-task: mys-rx
-: mys-rx& ( -- )
-  mys-rx activate
-  begin
-    mys-available? if
-    then
-    pause
-  again ;
 
 \ multitask transport& mys-tx&
