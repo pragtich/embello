@@ -236,12 +236,13 @@ decimal calign
   \ flags
   \ sequence
   \ Packet format:
-  \ 1 length
-  \ 2 recipient
-  \ 3 version
-  \ 4 sender
-  \ 5 control flags
-  \ 6 sequence #
+  \ 0 last
+  \ 1 sender
+  \ 2 destination
+  \ 3 version_length (2 bit protocol ver, 1 bit signed flag, 5 bit length of payload
+  \ 4 command_ack_payload (3 bit command type, 1 bit request ACK, 1 bit IS ACK, 3 bit payload data type)
+  \ 5 type (depends on command)
+  \ 6 sensor (sensor ID)
   \ 7+ payload or ack
   \ c++@ swap dup 0 do ( caddr+1 c0 )
   \   dup h.2 ." ." RF:FIFO rf! c++@ swap ( caddr+1 c1 )
