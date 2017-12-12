@@ -81,7 +81,7 @@ PB5  constant mys-pin-DIO5
 64  constant mys:MAXLEN \ TODO: how long?
 5   constant mys:nHDR   \ Header length
 2   constant mys:VER    \ mysensors version: TODO
-$FF variable mys:parent
+$FF variable mys:myparent
 
 create mys:rxmsg mys:MAXLEN allot 
 
@@ -262,7 +262,7 @@ decimal calign
   \  rf.
   RF:M_TX rf!mode
   begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
-  RF:M_RX rf!mode ;     \ TODO other drivers do not go straight to RX mode: why?
+  RF:M_STDBY rf!mode ;     \ TODO other drivers do not go straight to RX mode: why?
 
 
 ( Receive ring , Transmit ring )
@@ -339,7 +339,7 @@ decimal calign
     then
     1 ms
   loop
-  RF:M_STBY rf!mode
+  RF:M_STDBY rf!mode
   $FF ;
 
 task: transport
