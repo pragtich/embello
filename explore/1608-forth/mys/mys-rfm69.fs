@@ -317,12 +317,15 @@ decimal calign
   RF:IRQ2 rf@ RF:IRQ2_CRCOK and  ;
 
 : mys-msg>parent ( caddr -- parent ) \ Get parent response from packet (no RFM69 header) or $FF if invalid
-  dup      c@ 13 =       ( caddr flag ) \ TODO: how long?
-  over 4 + c@  3 = and                  \ command type?
-  \ TODO: NEED TO FUCKING UNDERSTAND THE PACKET FORMAT
-  \ Trace the code: what is going into the packets
-  \ Then compare to logged packets: is this what I expect?
-  \ Focus on the findparent canned message which is now apparently working
+  dup      c@ 13 =                 ( caddr flag ) \ TODO: how long?
+  over 4 + c@ %01100001 = and                     \ 01100001 command=3 type = 8 payload type = 1 
+  over 3 + c@ $1F and 1 = and                     \ length = 1 (+header)
+  if
+  \ Get address and return it
+    7 + c@
+  else
+    drop $FF
+  then
 ;
 
 : mys-waitparent ( ms -- parent ) \ Wait for a parent confirmation in ms milliseconds or returns $FF
