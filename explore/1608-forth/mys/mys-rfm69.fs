@@ -162,7 +162,7 @@ decimal calign
 : rf-n@spi ( addr len -- )  \ read N bytes from the FIFO
   0 do  RF:FIFO rf@ over c! 1+  loop drop ;
 : rf-n!spi ( addr len -- )  \ write N bytes to the FIFO
-  ." >" 0 do dup c@  dup h.2 100 ms RF:FIFO rf! 1+ loop drop ." < " ;
+  ." >" 0 do dup c@  dup h.2 RF:FIFO rf! 1+ loop drop ." < " ;
 
 : rf!mode ( b -- )  \ set the radio mode, and store a copy in a variable
   dup rf.mode !
@@ -289,26 +289,6 @@ decimal calign
   loop
   c! drop ;
 
-0 constant mys:INIT    \ 0 initialize
-1 constant mys:PARENT  \ 1 find parent
-2 constant mys:ERROR   \ 2 get ID
-\ 3 check uplink
-\ 4 ready
-\ 5 fail
-
-: mys-init ." mys-init:" cr rf-init 500 ms ." Testing RFM69 mysensors" cr ;
-: mys-parent
-  ." Finding parent" cr
-  mys:findparent >mys ;
-\  mys:findparent 7 0 rf-send ;
-
-: mys-error ." ERROR " cr ;
-
-2 wide FSM: TSM
-                  (  OK case )              ( NOK case )
-( state=0 ) || mys-init   mys:PARENT || mys-error mys:ERROR
-( state=1 ) || mys-parent mys:PARENT || mys-error mys:ERROR
-;FSM
 
 : mys-available? ( -- bool) \ Check if there is an incoming message in the FIFO
   rf.mode @ RF:M_RX <> if
@@ -329,18 +309,48 @@ decimal calign
 ;
 
 : mys-waitparent ( ms -- parent ) \ Wait for a parent confirmation in ms milliseconds or returns $FF
+  dup . ." milliseconds to wait" 
   0 do
+    
     mys-available? if
+      ." +"
       RF:FIFO rf@ mys:MAXLEN min
       dup mys:rxmsg c!
       mys:rxmsg 1+ over rf-n@spi
       mys:rxmsg mys:nHDR + mys-msg>parent
       dup $FF <> if unloop exit then
+    else
+      ." -"
     then
     1 ms
   loop
   RF:M_STDBY rf!mode
   $FF ;
+
+
+0 constant mys:INIT    \ 0 initialize
+1 constant mys:PARENT  \ 1 find parent
+2 constant mys:ERROR   \ 2 get ID
+\ 3 check uplink
+\ 4 ready
+\ 5 fail
+
+: mys-init ." mys-init:" cr rf-init 500 ms ." Testing RFM69 mysensors" cr ;
+: mys-parent
+  ." Finding parent" cr
+  mys:findparent >mys
+  \ begin pause txbuf ring# while repeat
+  \ pause 500 mys-waitparent
+;
+\  mys:findparent 7 0 rf-send ;
+
+: mys-error ." ERROR " cr ;
+
+2 wide FSM: TSM
+                  (  OK case )              ( NOK case )
+( state=0 ) || mys-init   mys:PARENT || mys-error mys:ERROR
+( state=1 ) || mys-parent mys:PARENT || mys-error mys:ERROR
+;FSM
 
 task: transport
 : transport& ( -- )
