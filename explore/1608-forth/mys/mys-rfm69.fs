@@ -266,8 +266,11 @@ decimal calign
  
 
 ( Receive ring , Transmit ring )
-256 4 + buffer: rxbuf  rxbuf 256 init-ring
-256 4 + buffer: txbuf  txbuf 256 init-ring
+256 4 + buffer: rxbuf  rxbuf  256 init-ring
+256 4 + buffer: txbuf  txbuf  256 init-ring
+( Ring for transport state machine updates)
+256 4 + buffer: tsmbuf tsmbuf 256 init-ring
+
 
 : >mys  ( caddr -- ) \ Adds message (array of chars) starting at addr to txbuf
   txbuf ring? if \ TODO: proper length checking
@@ -337,8 +340,8 @@ decimal calign
 0 constant mys:INIT    \ 0 initialize
 1 constant mys:PARENT  \ 1 find parent
 2 constant mys:ERROR   \ 2 get ID
-\ 3 check uplink
-\ 4 ready
+3 constant mys:READY   \ 3 ready
+\ 4 check uplink
 \ 5 fail
 
 : mys-init ." mys-init:" cr rf-init 500 ms ." Testing RFM69 mysensors" cr ;
@@ -348,15 +351,29 @@ decimal calign
   begin pause txbuf ring# 0= until
   2000 mys-waitparent
   dup ." Parent result: " h.2 cr
+  dup $FF = if
+    ." Error finding parent, defaulting to 0"   \ TODO: do something smarter?
+    drop 0
+  then
+  mys:myparent !
+  0 tsmbuf >ring           \ Transport can continue
 ;
-\  mys:findparent 7 0 rf-send ;
+
+: mys-run                  \ Run the normal sensor task
+  ." Running"
+  begin
+    pause
+  again
+  ;
 
 : mys-error ." ERROR " cr ;
 
 2 wide FSM: TSM
-                  (  OK case )              ( NOK case )
-( state=0 ) || mys-init   mys:PARENT || mys-error mys:ERROR
-( state=1 ) || mys-parent mys:PARENT || mys-error mys:ERROR
+                         (  OK case )              ( NOK case )
+( state=0 mys:INIT)   || mys-init   mys:PARENT || mys-error mys:ERROR
+( state=1 mys:PARENT) || mys-parent mys:READY  || mys-error mys:PARENT
+( state=2 mys:ERROR)  || nop        mys:INIT   || mys-error mys:ERROR
+( state=3 mys:READY)  || mys-run    mys:READY  || mys-error mys:INIT
 ;FSM
 
 task: transport
@@ -365,7 +382,11 @@ task: transport
   transport activate
   0 TSM 0 TSM
   begin
-    pause 5000 ms ." ."
+    tsmbuf ring# if
+      tsmbuf ring> TSM
+    then
+    pause
+    5000 ms ." ."
   again ;
 
 create mys:txmsg mys:MAXLEN allot 
