@@ -322,22 +322,17 @@ decimal calign
   0 do
     
     mys-available? if
-      ." +"
       RF:FIFO rf@ mys:MAXLEN min           ( n )
       dup mys:rxmsg c!                     ( n )
       mys:rxmsg 1+ over                    ( n rxmsg+1 n )   
       rf-n@spi                             ( n )
       mys:rxmsg mys-msg>parent
       dup $FF <> if unloop exit then
-    else
-      ." -"
     then
     1 ms
   loop
-  ." x"
   RF:M_STDBY rf!mode
   $FF ;
-
 
 0 constant mys:INIT    \ 0 initialize
 1 constant mys:PARENT  \ 1 find parent
