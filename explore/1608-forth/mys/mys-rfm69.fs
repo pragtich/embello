@@ -162,7 +162,7 @@ decimal calign
 : rf-n@spi ( addr len -- )  \ read N bytes from the FIFO
   0 do  RF:FIFO rf@ over c! 1+  loop drop ;
 : rf-n!spi ( addr len -- )  \ write N bytes to the FIFO
-  ." >" 0 do dup c@  dup h.2 RF:FIFO rf! 1+ loop drop ." < " ;
+  ( ." >" ) 0 do dup c@  ( dup h.2 ) RF:FIFO rf! 1+ loop drop ( ." < " ) ;
 
 : rf!mode ( b -- )  \ set the radio mode, and store a copy in a variable
   dup rf.mode !
@@ -262,8 +262,8 @@ decimal calign
   \  rf.
   RF:M_TX rf!mode
   begin RF:IRQ2 rf@ RF:IRQ2_SENT and until
-  RF:M_STDBY rf!mode ;     \ TODO other drivers do not go straight to RX mode: why?
-
+  RF:M_STDBY rf!mode ;    
+ 
 
 ( Receive ring , Transmit ring )
 256 4 + buffer: rxbuf  rxbuf 256 init-ring
@@ -271,7 +271,7 @@ decimal calign
 
 : >mys  ( caddr -- ) \ Adds message (array of chars) starting at addr to txbuf
   txbuf ring? if \ TODO: proper length checking
-    dup c@ 1+ 0 do dup c@ dup h.2 space txbuf >ring 1+ loop
+    dup c@ 1+ 0 do dup c@ ( dup h.2 space ) txbuf >ring 1+ loop
   else
     ." Error: tx buf full, dropping message"
   then
@@ -291,39 +291,50 @@ decimal calign
 
 
 : mys-available? ( -- bool) \ Check if there is an incoming message in the FIFO
-  rf.mode @ RF:M_RX <> if
+  rf.mode @  RF:M_STDBY = if
     RF:M_RX rf!mode
-  then
-  RF:IRQ2 rf@ RF:IRQ2_CRCOK and  ;
+    
+    0 
+  else
+  
+    RF:IRQ2 rf@ RF:IRQ2_CRCOK and 0<>
+  then ;
+
+: mys-dump ( caddr -- ) \ Dump packet contents
+  dup hex.
+  mys:MAXLEN dump
+  ;
 
 : mys-msg>parent ( caddr -- parent ) \ Get parent response from packet (no RFM69 header) or $FF if invalid
-  dup      c@ 13 =                 ( caddr flag ) \ TODO: how long?
-  over 4 + c@ %01100001 = and                     \ 01100001 command=3 type = 8 payload type = 1 
-  over 3 + c@ $1F and 1 = and                     \ length = 1 (+header)
+  dup      c@ 13 =                ( caddr flag ) \ TODO: how long?
+  over 10 + c@ $23 = and          \ command=1, c=3
+  over 11 + c@ $8  = and          \ t=8
   if
   \ Get address and return it
-    7 + c@
+    13 + c@
   else
     drop $FF
   then
 ;
 
 : mys-waitparent ( ms -- parent ) \ Wait for a parent confirmation in ms milliseconds or returns $FF
-  dup . ." milliseconds to wait" 
+  ( dup . ." milliseconds to wait")
   0 do
     
     mys-available? if
       ." +"
-      RF:FIFO rf@ mys:MAXLEN min
-      dup mys:rxmsg c!
-      mys:rxmsg 1+ over rf-n@spi
-      mys:rxmsg mys:nHDR + mys-msg>parent
+      RF:FIFO rf@ mys:MAXLEN min           ( n )
+      dup mys:rxmsg c!                     ( n )
+      mys:rxmsg 1+ over                    ( n rxmsg+1 n )   
+      rf-n@spi                             ( n )
+      mys:rxmsg mys-msg>parent
       dup $FF <> if unloop exit then
     else
       ." -"
     then
     1 ms
   loop
+  ." x"
   RF:M_STDBY rf!mode
   $FF ;
 
@@ -339,8 +350,9 @@ decimal calign
 : mys-parent
   ." Finding parent" cr
   mys:findparent >mys
-  \ begin pause txbuf ring# while repeat
-  \ pause 500 mys-waitparent
+  begin pause txbuf ring# 0= until
+  2000 mys-waitparent
+  dup ." Parent result: " h.2 cr
 ;
 \  mys:findparent 7 0 rf-send ;
 
