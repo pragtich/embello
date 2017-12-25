@@ -1,0 +1,19 @@
+;; This buffer is for text that is not saved, and for Lisp evaluation.
+;; To create a file, visit it with <open> and enter text in its buffer.
+
+
+
+0D Complete packet excl count = 13
+FF Recipient: $FF broadcast
+01 Version: $01
+00 Sender:  $00 gateway
+00 Flags:   $00 normal message
+23 Sequence: last+1 = OK
+00 Last :   $00: Gateway
+00 Sender:  $00 = Gateway
+FF Destination: $FF Broadcast
+0A Version 0, not signed, length payload $A = 10 \ Right sequence of bits?
+23 Command type, 1 no ack req, is not ack, data type 3
+08 Type = 8
+FF Sensor = $FF
+00 Payload: Your parent is 0
