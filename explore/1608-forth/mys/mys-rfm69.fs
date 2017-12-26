@@ -337,10 +337,11 @@ decimal calign
   RF:M_STDBY rf!mode
   $FF ;
 
+\ State constants. TODO: renumber (needs update of state table!)
 0 constant mys:INIT    \ 0 initialize
 1 constant mys:PARENT  \ 1 find parent
-2 constant mys:ERROR   \ 2 get ID
-3 constant mys:READY   \ 3 ready
+2 constant mys:ERROR   \ 2 TODO get ID
+3 constant mys:READY   \ 3 ready   TODO add Presentation
 \ 4 check uplink
 \ 5 fail
 
