@@ -345,7 +345,7 @@ decimal calign
 \ 5 fail
 
 : mys-init ." mys-init:" cr rf-init 500 ms ." Testing RFM69 mysensors" cr ;
-: mys-parent
+: mys-parent   \ TODO: multiple parent responses. Also, paybload byte is distance, not parent https://github.com/mysensors/MySensors/blob/b148d828ad149796cf700c9a6a28390736652b43/core/MyTransport.cpp#L745 and I should reply with 'sender' instead
   ." Finding parent" cr
   mys:findparent >mys
   begin pause txbuf ring# 0= until
